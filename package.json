@@ -1,0 +1,21 @@
+{
+  "name": "startup-jathara",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "db:start": "bash scripts/dev-db.sh start",
+    "db:stop": "bash scripts/dev-db.sh stop",
+    "db:migrate": "pnpm --filter @sj/api db:migrate",
+    "db:seed": "pnpm --filter @sj/api db:seed",
+    "dev:api": "pnpm --filter @sj/api dev",
+    "dev:web": "pnpm --filter @sj/web dev",
+    "dev:console": "pnpm --filter @sj/console dev",
+    "dev:mobile": "pnpm --filter @sj/mobile start",
+    "build:mobile:apk": "pnpm --filter @sj/mobile build:android:apk",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "build": "pnpm -r build"
+  }
+}
