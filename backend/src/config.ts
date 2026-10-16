@@ -21,6 +21,8 @@ const Env = z.object({
   ACTIVATION_RATE_LIMIT: z.coerce.number().int().positive().default(10),
   // Explicit sign-off that every item in docs/LAUNCH_CHECKLIST.md is complete. Required to start in production.
   LAUNCH_APPROVED: z.enum(["true", "false"]).optional().or(z.literal("").transform(() => undefined)),   // empty = unset (.env.example)
+  // Allows bypassing the strict enterprise launch checks during staging and initial cloud deployments.
+  BYPASS_LAUNCH_GATE: z.enum(["true", "false"]).optional().or(z.literal("").transform(() => undefined)),
   // Background workers (ranking runs, email/SMS outbox) in this process. Run `pnpm --filter @sj/api start:worker` as a
   // separate service instead and set this to false where the host throttles CPU between requests (Cloud Run).
   RUN_WORKERS: z.enum(["true", "false"]).default("true"),
@@ -131,15 +133,16 @@ export function productionBlockers(e: z.output<typeof Env>, privacyNoticeVersion
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, opts: { privacyNoticeVersion?: string } = {}): Config {
   const e = Env.parse(env);
-  if (e.NODE_ENV === "production") {
+  const bypassGate = e.BYPASS_LAUNCH_GATE === "true";
+  if (e.NODE_ENV === "production" && !bypassGate) {
     const blockers = productionBlockers(e, opts.privacyNoticeVersion);
     if (blockers.length) throw new Error(`Production start refused. Launch checks incomplete:\n- ${blockers.join("\n- ")}`);
   }
   if (e.AUTH_MODE === "dev") {
-    if (e.NODE_ENV === "production") throw new Error("AUTH_MODE=dev is not allowed when NODE_ENV=production");
+    if (e.NODE_ENV === "production" && !bypassGate) throw new Error("AUTH_MODE=dev is not allowed when NODE_ENV=production");
     if (!e.DEV_AUTH_SECRET) throw new Error("DEV_AUTH_SECRET (>= 32 chars) is required when AUTH_MODE=dev");
   }
-  const production = e.NODE_ENV === "production";
+  const production = e.NODE_ENV === "production" && !bypassGate;
   if (production && e.REQUIRE_STAFF_MFA === "false") {
     throw new Error("REQUIRE_STAFF_MFA=false is not allowed when NODE_ENV=production: staff roles must use MFA (FR-IAM-11)");
   }

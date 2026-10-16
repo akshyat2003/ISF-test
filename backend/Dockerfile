@@ -30,6 +30,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=4000
+ENV BYPASS_LAUNCH_GATE=true
 
 # Copy compiled backend bundle, production package.json, and migrations
 COPY --from=builder /app/backend/dist ./dist
