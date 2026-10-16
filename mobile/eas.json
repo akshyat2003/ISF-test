@@ -12,16 +12,31 @@
       "channel": "preview",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://isf-api.onrender.com",
+        "EXPO_PUBLIC_AUTH_MODE": "supabase",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://wdeslbtyyeqpjdgnaieg.supabase.co"
       }
     },
     "production-apk": {
       "channel": "production",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://isf-api.onrender.com",
+        "EXPO_PUBLIC_AUTH_MODE": "supabase",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://wdeslbtyyeqpjdgnaieg.supabase.co"
       }
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://isf-api.onrender.com",
+        "EXPO_PUBLIC_AUTH_MODE": "supabase",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://wdeslbtyyeqpjdgnaieg.supabase.co"
+      }
     }
   }
 }
