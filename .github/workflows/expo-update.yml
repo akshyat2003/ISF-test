@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "apps/mobile/**"
+      - "mobile/**"
       - "packages/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -42,5 +42,5 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Publish EAS Update
-        working-directory: apps/mobile
+        working-directory: mobile
         run: eas update --auto --non-interactive

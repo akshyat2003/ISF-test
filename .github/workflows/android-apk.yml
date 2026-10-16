@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "apps/mobile/**"
+      - "mobile/**"
       - "packages/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -50,13 +50,13 @@ jobs:
         run: pnpm --filter @sj/mobile exec expo prebuild --platform android --non-interactive
 
       - name: Build installable debug APK
-        working-directory: apps/mobile/android
+        working-directory: mobile/android
         run: ./gradlew --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: startup-jathara-android-debug-apk
-          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7

@@ -1,5 +1,8 @@
 packages:
-  - "apps/*"
+  - "backend"
+  - "frontend-web"
+  - "frontend-console"
+  - "mobile"
   - "packages/*"
 onlyBuiltDependencies:
   - esbuild
