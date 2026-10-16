@@ -11,6 +11,7 @@
     "export:web": "expo export --platform web --output-dir dist-web",
     "build:android:apk": "eas build -p android --profile production-apk",
     "build:android:preview": "eas build -p android --profile preview",
+    "update:global": "eas update --branch production",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run"
   },

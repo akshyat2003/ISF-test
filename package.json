@@ -17,6 +17,7 @@
     "dev:console": "pnpm --filter @sj/console dev",
     "dev:mobile": "pnpm --filter @sj/mobile start",
     "build:mobile:apk": "pnpm --filter @sj/mobile build:android:apk",
+    "update:mobile": "pnpm --filter @sj/mobile update:global",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "build": "pnpm -r build"
