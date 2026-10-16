@@ -25,7 +25,8 @@
         {
           "defaultChannel": "notices"
         }
-      ]
+      ],
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": false
