@@ -71,9 +71,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void (async () => {
-      const token = await getToken();
-      setSignedIn(!!token);
-      if (token) await refreshMe();
+      try {
+        const token = await getToken();
+        setSignedIn(!!token);
+        if (token) await refreshMe();
+      } catch (e) {
+        console.warn("Session initialization error:", e);
+        setSignedIn(false);
+      }
     })();
   }, [getToken, refreshMe]);
 
