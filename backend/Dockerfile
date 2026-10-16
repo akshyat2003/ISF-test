@@ -24,11 +24,15 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4000
 
-# Copy installed dependencies, compiled bundle, package metadata, and database migrations
+# Copy root virtual store (.pnpm) and backend package symlinks
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/backend/dist ./dist
-COPY --from=builder /app/backend/package.json ./package.json
+COPY --from=builder /app/backend/node_modules ./backend/node_modules
+COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/backend/package.json ./backend/package.json
 COPY --from=builder /app/database ./database
+
+# Run from the backend directory so Node finds backend/node_modules/@fastify/cors
+WORKDIR /app/backend
 
 EXPOSE 4000
 
