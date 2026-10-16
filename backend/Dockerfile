@@ -6,7 +6,7 @@ WORKDIR /app
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@10.28.0 --activate
 
-# Copy monorepo configuration
+# Copy monorepo configuration and source
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/ ./packages/
 COPY backend/ ./backend/
@@ -24,14 +24,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4000
 
-# Copy compiled backend bundle and migrations
+# Copy installed dependencies, compiled bundle, package metadata, and database migrations
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/package.json ./package.json
 COPY --from=builder /app/database ./database
-
-# Install only production dependencies needed at runtime (if any)
-RUN corepack enable && corepack prepare pnpm@10.28.0 --activate && \
-    pnpm install --prod --ignore-scripts
 
 EXPOSE 4000
 
