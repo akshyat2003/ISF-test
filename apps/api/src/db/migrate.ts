@@ -6,12 +6,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createSql, type Sql } from "./client.js";
 
-/** Finds <repo>/db/migrations by walking up from this file (works from src/ and from the bundled dist/). */
 export function findMigrationsDir(start = path.dirname(fileURLToPath(import.meta.url))): string {
   for (let dir = start; ; dir = path.dirname(dir)) {
-    const candidate = path.join(dir, "db", "migrations");
+    const candidate = path.join(dir, "database", "migrations");
     if (existsSync(candidate)) return candidate;
-    if (path.dirname(dir) === dir) throw new Error("db/migrations not found; set MIGRATIONS_DIR");
+    const legacy = path.join(dir, "db", "migrations");
+    if (existsSync(legacy)) return legacy;
+    if (path.dirname(dir) === dir) throw new Error("database/migrations or db/migrations not found; set MIGRATIONS_DIR");
   }
 }
 

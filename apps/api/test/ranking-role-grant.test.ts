@@ -9,9 +9,9 @@ import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb } from "./helpers.js";
+import { findMigrationsDir } from "../src/db/migrate.js";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATION_0009 = readFileSync(path.join(here, "../../../db/migrations/0009_ranking_worker_set_role.sql"), "utf8");
+const MIGRATION_0009 = readFileSync(path.join(findMigrationsDir(), "0009_ranking_worker_set_role.sql"), "utf8");
 
 let db: Awaited<ReturnType<typeof createTestDb>>;
 let apiUser: postgres.Sql;

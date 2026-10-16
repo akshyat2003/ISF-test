@@ -20,9 +20,9 @@ import {
   type RankingModel,
 } from "../src/modules/ranking/model.js";
 import { prepareInput } from "../src/modules/ranking/safety.js";
+import { findMigrationsDir } from "../src/db/migrate.js";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const migration = (file: string) => readFileSync(path.join(here, "../../../db/migrations", file), "utf8");
+const migration = (file: string) => readFileSync(path.join(findMigrationsDir(), file), "utf8");
 const between = (text: string, tag: string) => text.split(`$${tag}$`)[1]!;
 
 /** The draft criteria v1 and the application form exactly as the migrations ship them (no second copy to drift). */
