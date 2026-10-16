@@ -16,6 +16,13 @@ COPY database/ ./database/
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @sj/api build
 
+# Generate clean production package.json without devDependencies or workspace:* references
+RUN node -e "const fs = require('fs'); \
+    const pkg = JSON.parse(fs.readFileSync('backend/package.json', 'utf8')); \
+    delete pkg.devDependencies; \
+    delete pkg.dependencies['@sj/contracts']; \
+    fs.writeFileSync('backend/dist/package.json', JSON.stringify(pkg, null, 2));"
+
 # Production runner stage
 FROM node:22-alpine AS runner
 
@@ -24,15 +31,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4000
 
-# Copy root virtual store (.pnpm) and backend package symlinks
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/backend/node_modules ./backend/node_modules
-COPY --from=builder /app/backend/dist ./backend/dist
-COPY --from=builder /app/backend/package.json ./backend/package.json
+# Copy compiled backend bundle, production package.json, and migrations
+COPY --from=builder /app/backend/dist ./dist
+COPY --from=builder /app/backend/dist/package.json ./package.json
 COPY --from=builder /app/database ./database
 
-# Run from the backend directory so Node finds backend/node_modules/@fastify/cors
-WORKDIR /app/backend
+# Install clean production dependencies via standard npm (flat, non-symlink node_modules)
+RUN npm install --omit=dev --no-audit --no-fund
 
 EXPOSE 4000
 
