@@ -26,7 +26,16 @@
           "defaultChannel": "notices"
         }
       ],
-      "expo-updates"
+      "expo-updates",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
