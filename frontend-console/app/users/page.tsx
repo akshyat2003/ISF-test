@@ -20,8 +20,18 @@ function Users() {
   const status = (params.get("status") ?? "") as AccountStatus | "";
   const offset = Number(params.get("offset") ?? 0);
   const [text, setText] = useState(q);
+  const [selectedRole, setSelectedRole] = useState(role);
+  const [selectedStatus, setSelectedStatus] = useState(status);
   const [data, setData] = useState<AdminUserList | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sync state when URL query params change
+  useEffect(() => {
+    setText(q);
+    setSelectedRole(role);
+    setSelectedStatus(status);
+  }, [q, role, status]);
 
   // Create credentials for Jury member, Delegate, Customer Support, Staff, etc.
   const createParam = params.get("create") === "true";
@@ -44,17 +54,58 @@ function Users() {
     if (r) setNewRole(r);
   }, [params]);
 
-  const load = useCallback(async () => {
+  const canReadUsers = !me || me.roles.includes("admin") || me.roles.includes("management") || can(me, "user.read");
+
+  const fetchUsers = useCallback(async (filters: { q?: string; role?: string; status?: string; offset?: number }) => {
     setError(null);
-    try { setData(await api.admin.users({ q: q || undefined, role: role || undefined, status: status || undefined, limit: PAGE, offset })); }
-    catch (e) { setError((e as Error).message); }
-  }, [q, role, status, offset]);
-  useEffect(() => { if (can(me, "user.read")) void load(); }, [me, load]);
+    setLoadingUsers(true);
+    try {
+      const res = await api.admin.users({
+        q: filters.q ? filters.q.trim() : undefined,
+        role: (filters.role || undefined) as Role | undefined,
+        status: (filters.status || undefined) as AccountStatus | undefined,
+        limit: PAGE,
+        offset: filters.offset ?? 0,
+      });
+      setData(res);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, []);
+
+  const load = useCallback(async () => {
+    await fetchUsers({ q, role, status, offset });
+  }, [fetchUsers, q, role, status, offset]);
+
+  useEffect(() => {
+    if (canReadUsers) void load();
+  }, [canReadUsers, load]);
+
+  const applyFilter = (filterOverrides: { q?: string; role?: string; status?: string; offset?: string } = {}) => {
+    const nextQ = filterOverrides.q !== undefined ? filterOverrides.q : text.trim();
+    const nextRole = filterOverrides.role !== undefined ? filterOverrides.role : selectedRole;
+    const nextStatus = filterOverrides.status !== undefined ? filterOverrides.status : selectedStatus;
+    const nextOffset = filterOverrides.offset !== undefined ? filterOverrides.offset : "0";
+
+    const p = new URLSearchParams();
+    if (nextQ) p.set("q", nextQ);
+    if (nextRole) p.set("role", nextRole);
+    if (nextStatus) p.set("status", nextStatus);
+    if (nextOffset && nextOffset !== "0") p.set("offset", nextOffset);
+
+    router.push(`/users${p.size ? `?${p}` : ""}`);
+    void fetchUsers({
+      q: nextQ,
+      role: nextRole,
+      status: nextStatus,
+      offset: Number(nextOffset) || 0,
+    });
+  };
 
   const go = (next: Record<string, string>) => {
-    const p = new URLSearchParams({ q, role, status, ...next });
-    for (const [k, v] of [...p.entries()]) if (!v || (k === "offset" && v === "0")) p.delete(k);
-    router.push(`/users${p.size ? `?${p}` : ""}`);
+    applyFilter(next);
   };
 
   async function handleCreateCredential(e: React.FormEvent) {
@@ -215,28 +266,82 @@ function Users() {
         </section>
       )}
 
-      <form className="toolbar" onSubmit={(e) => { e.preventDefault(); go({ q: text.trim(), offset: "0" }); }}>
+      <form
+        className="toolbar"
+        onSubmit={(e) => {
+          e.preventDefault();
+          applyFilter({ q: text.trim(), role: selectedRole, status: selectedStatus, offset: "0" });
+        }}
+      >
         <label>Search
-          <input type="text" placeholder="Name, email, mobile, or team" value={text} onChange={(e) => setText(e.target.value)} />
+          <input
+            type="text"
+            placeholder="Name, email, mobile, or team"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
         </label>
         <label>Role
-          <select value={role} onChange={(e) => go({ role: e.target.value, offset: "0" })}>
+          <select
+            value={selectedRole}
+            onChange={(e) => {
+              const r = e.target.value;
+              setSelectedRole(r as Role | "");
+              applyFilter({ role: r, offset: "0" });
+            }}
+          >
             <option value="">Any Role</option>
-            {ROLES.map((r) => <option key={r} value={r}>{label(r)}</option>)}
+            <option value="customer_support">Customer Support</option>
+            <option value="management">Management Team</option>
+            <option value="admin">Administrator</option>
+            <option value="jury_member">Jury Member</option>
+            <option value="volunteer">Volunteer</option>
+            <option value="delegate">Delegate</option>
+            <option value="startup_team_leader">Startup Team Leader</option>
+            <option value="startup_team_member">Startup Team Member</option>
           </select>
         </label>
         <label>Status
-          <select value={status} onChange={(e) => go({ status: e.target.value, offset: "0" })}>
+          <select
+            value={selectedStatus}
+            onChange={(e) => {
+              const s = e.target.value;
+              setSelectedStatus(s as AccountStatus | "");
+              applyFilter({ status: s, offset: "0" });
+            }}
+          >
             <option value="">Any Status</option>
-            {ACCOUNT_STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+            {ACCOUNT_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {label(s)}
+              </option>
+            ))}
           </select>
         </label>
-        <button className="btn btn-sm">Filter</button>
+        <button className="btn btn-sm" disabled={loadingUsers}>
+          {loadingUsers ? "Filtering..." : "Filter"}
+        </button>
+        {(q || role || status || text) && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            style={{ background: "#f1f5f9", color: "#475569" }}
+            onClick={() => {
+              setText("");
+              setSelectedRole("");
+              setSelectedStatus("");
+              applyFilter({ q: "", role: "", status: "", offset: "0" });
+            }}
+          >
+            Clear Filters
+          </button>
+        )}
       </form>
       {error && <p className="notice notice-error" role="alert">{error}</p>}
+      {!data && loadingUsers && <p className="muted">Loading accounts...</p>}
       {data && (data.items.length === 0 ? <p className="muted">No accounts match.</p> : (
         <>
-          <div className="table-wrap">
+          <div className="table-wrap" style={{ opacity: loadingUsers ? 0.6 : 1, transition: "opacity 0.2s" }}>
             <table>
               <thead>
                 <tr>

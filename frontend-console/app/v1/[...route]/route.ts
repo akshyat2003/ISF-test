@@ -862,9 +862,25 @@ async function handler(request: Request) {
           from user_accounts u
           left join role_grants r on r.user_id = u.id and r.revoked_at is null
           where true
-            ${q ? sql`and (lower(u.full_name) like ${`%${q}%`} or lower(coalesce(u.email, '')) like ${`%${q}%`} or coalesce(u.mobile_e164, '') like ${`%${q}%`} or lower(coalesce(u.team_name, '')) like ${`%${q}%`} or lower(coalesce(u.category, '')) like ${`%${q}%`})` : sql``}
-            ${statusFilter ? sql`and u.status = ${statusFilter}` : sql``}
-            ${roleFilter ? sql`and exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${roleFilter} and g.revoked_at is null)` : sql``}
+            ${q ? sql`and (
+              lower(coalesce(u.full_name, '')) like ${`%${q}%`}
+              or lower(coalesce(u.email, '')) like ${`%${q}%`}
+              or coalesce(u.mobile_e164, '') like ${`%${q}%`}
+              or lower(coalesce(u.team_name, '')) like ${`%${q}%`}
+              or lower(coalesce(u.category, '')) like ${`%${q}%`}
+              or lower(coalesce(u.city, '')) like ${`%${q}%`}
+              or lower(coalesce(u.state, '')) like ${`%${q}%`}
+              or exists (select 1 from role_grants rg where rg.user_id = u.id and lower(rg.role) like ${`%${q}%`} and rg.revoked_at is null)
+            )` : sql``}
+            ${statusFilter ? sql`and coalesce(u.status, 'active') = ${statusFilter}` : sql``}
+            ${roleFilter ? sql`and (
+              exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${roleFilter} and g.revoked_at is null)
+              or lower(coalesce(u.category, '')) = ${roleFilter.toLowerCase()}
+              or (${roleFilter === 'startup_team_leader' ? sql`lower(coalesce(u.category, '')) in ('startup_founder', 'startup_team_leader')` :
+                   roleFilter === 'startup_team_member' ? sql`lower(coalesce(u.category, '')) in ('student_innovator', 'startup_team_member')` :
+                   roleFilter === 'jury_member' ? sql`lower(coalesce(u.category, '')) in ('jury_member', 'mentor')` :
+                   roleFilter === 'delegate' ? sql`lower(coalesce(u.category, '')) in ('delegate', 'investor', 'corporate', 'observer')` : sql`false`})
+            )` : sql``}
           group by u.id
           order by u.created_at desc
           limit ${limit} offset ${offset}
@@ -873,34 +889,60 @@ async function handler(request: Request) {
         const countResult = await sql`
           select count(*)::int as total from user_accounts u
           where true
-            ${q ? sql`and (lower(u.full_name) like ${`%${q}%`} or lower(coalesce(u.email, '')) like ${`%${q}%`} or coalesce(u.mobile_e164, '') like ${`%${q}%`} or lower(coalesce(u.team_name, '')) like ${`%${q}%`} or lower(coalesce(u.category, '')) like ${`%${q}%`})` : sql``}
-            ${statusFilter ? sql`and u.status = ${statusFilter}` : sql``}
-            ${roleFilter ? sql`and exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${roleFilter} and g.revoked_at is null)` : sql``}
+            ${q ? sql`and (
+              lower(coalesce(u.full_name, '')) like ${`%${q}%`}
+              or lower(coalesce(u.email, '')) like ${`%${q}%`}
+              or coalesce(u.mobile_e164, '') like ${`%${q}%`}
+              or lower(coalesce(u.team_name, '')) like ${`%${q}%`}
+              or lower(coalesce(u.category, '')) like ${`%${q}%`}
+              or lower(coalesce(u.city, '')) like ${`%${q}%`}
+              or lower(coalesce(u.state, '')) like ${`%${q}%`}
+              or exists (select 1 from role_grants rg where rg.user_id = u.id and lower(rg.role) like ${`%${q}%`} and rg.revoked_at is null)
+            )` : sql``}
+            ${statusFilter ? sql`and coalesce(u.status, 'active') = ${statusFilter}` : sql``}
+            ${roleFilter ? sql`and (
+              exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${roleFilter} and g.revoked_at is null)
+              or lower(coalesce(u.category, '')) = ${roleFilter.toLowerCase()}
+              or (${roleFilter === 'startup_team_leader' ? sql`lower(coalesce(u.category, '')) in ('startup_founder', 'startup_team_leader')` :
+                   roleFilter === 'startup_team_member' ? sql`lower(coalesce(u.category, '')) in ('student_innovator', 'startup_team_member')` :
+                   roleFilter === 'jury_member' ? sql`lower(coalesce(u.category, '')) in ('jury_member', 'mentor')` :
+                   roleFilter === 'delegate' ? sql`lower(coalesce(u.category, '')) in ('delegate', 'investor', 'corporate', 'observer')` : sql`false`})
+            )` : sql``}
         `;
 
         return Response.json({
           total: countResult[0]?.total || 0,
-          items: rows.map((r: any) => ({
-            id: r.id,
-            email: r.email,
-            fullName: r.fullName || r.email?.split("@")[0] || "User",
-            mobile: r.mobile,
-            status: r.status,
-            signInLinked: Boolean(r.signInLinked),
-            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
-            activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
-            roles: Array.isArray(r.roles) ? r.roles : [],
-            editionAccess: [{ edition: 2026, source: "predefined" }],
-            activation: null,
-            category: r.category || null,
-            teamName: r.teamName || null,
-            domain: r.domain || null,
-            altMobile: r.altMobile || null,
-            city: r.city || null,
-            state: r.state || null,
-            country: r.country || null,
-            linkedinUrl: r.linkedinUrl || null,
-          })),
+          items: rows.map((r: any) => {
+            const rolesList: any[] = Array.isArray(r.roles) ? [...r.roles] : [];
+            if (rolesList.length === 0 && r.category) {
+              let inferred = r.category;
+              if (inferred === "startup_founder") inferred = "startup_team_leader";
+              else if (inferred === "student_innovator") inferred = "startup_team_member";
+              else if (inferred === "mentor") inferred = "jury_member";
+              rolesList.push({ grantId: `cat-${r.id}`, role: inferred, edition: 2026, grantedAt: r.createdAt });
+            }
+            return {
+              id: r.id,
+              email: r.email,
+              fullName: r.fullName || r.email?.split("@")[0] || "User",
+              mobile: r.mobile,
+              status: r.status,
+              signInLinked: Boolean(r.signInLinked),
+              createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+              activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
+              roles: rolesList,
+              editionAccess: [{ edition: 2026, source: "predefined" }],
+              activation: null,
+              category: r.category || null,
+              teamName: r.teamName || null,
+              domain: r.domain || null,
+              altMobile: r.altMobile || null,
+              city: r.city || null,
+              state: r.state || null,
+              country: r.country || null,
+              linkedinUrl: r.linkedinUrl || null,
+            };
+          }),
         });
       } catch (err) {
         console.error("[ADMIN USERS ERROR]", err);

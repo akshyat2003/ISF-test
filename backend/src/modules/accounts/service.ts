@@ -146,9 +146,25 @@ export async function listUsers(db: Db, f: { q?: string; role?: Role; status?: A
   const rows = await db<UserRow[]>`
     select ${USER_COLS(db)}, count(*) over ()::int as total from user_accounts u
     where true
-      ${like ? db`and (u.full_name ilike ${like} or u.email ilike ${like} or u.mobile_e164 ilike ${like} or u.team_name ilike ${like} or u.category ilike ${like})` : db``}
-      ${f.status ? db`and u.status = ${f.status}` : db``}
-      ${f.role ? db`and exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${f.role} and g.revoked_at is null)` : db``}
+      ${like ? db`and (
+        u.full_name ilike ${like}
+        or u.email ilike ${like}
+        or u.mobile_e164 ilike ${like}
+        or u.team_name ilike ${like}
+        or u.category ilike ${like}
+        or u.city ilike ${like}
+        or u.state ilike ${like}
+        or exists (select 1 from role_grants rg where rg.user_id = u.id and rg.role ilike ${like} and rg.revoked_at is null)
+      )` : db``}
+      ${f.status ? db`and coalesce(u.status, 'active') = ${f.status}` : db``}
+      ${f.role ? db`and (
+        exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${f.role} and g.revoked_at is null)
+        or lower(coalesce(u.category, '')) = ${f.role.toLowerCase()}
+        or (${f.role === 'startup_team_leader' ? db`lower(coalesce(u.category, '')) in ('startup_founder', 'startup_team_leader')` :
+             f.role === 'startup_team_member' ? db`lower(coalesce(u.category, '')) in ('student_innovator', 'startup_team_member')` :
+             f.role === 'jury_member' ? db`lower(coalesce(u.category, '')) in ('jury_member', 'mentor')` :
+             f.role === 'delegate' ? db`lower(coalesce(u.category, '')) in ('delegate', 'investor', 'corporate', 'observer')` : db`false`})
+      )` : db``}
     order by u.created_at desc, u.id limit ${f.limit} offset ${f.offset}`;
   return { total: rows[0]?.total ?? 0, items: await hydrate(db, rows) };
 }
