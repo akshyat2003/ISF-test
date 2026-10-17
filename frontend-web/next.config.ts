@@ -6,6 +6,15 @@ const config: NextConfig = {
   // Workspace packages are TypeScript source.
   transpilePackages: ["@sj/contracts", "@sj/client", "@sj/web-session"],
   poweredByHeader: false,
+  async redirects() {
+    return [
+      {
+        source: "/signup",
+        destination: "/register",
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     if (apiTarget && apiTarget.trim()) {
       return [

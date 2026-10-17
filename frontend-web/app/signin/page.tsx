@@ -401,12 +401,6 @@ function SignInForm() {
               />
             </div>
 
-            <div className="action-links">
-              <span>
-                No account? <Link href="/register" className="action-link">Register here!</Link>
-              </span>
-            </div>
-
             <button type="submit" className="btn-next">Next</button>
           </form>
         )}
