@@ -11,8 +11,7 @@ type CategoryId =
   | "investor"
   | "corporate"
   | "mentor"
-  | "observer"
-  | "management";
+  | "observer";
 
 interface CategoryMeta {
   id: CategoryId;
@@ -42,10 +41,10 @@ const CATEGORIES: CategoryMeta[] = [
   },
   {
     id: "volunteer",
-    title: "Volunteers",
+    title: "Volunteers (Individual)",
     badge: "Volunteers",
     icon: "🤝",
-    desc: "Coordination staff, summit desk volunteers & venue operations helpers",
+    desc: "Individual student & campus volunteers for summit coordination & venue operations",
     teamLabel: "Institution / Organization",
   },
   {
@@ -79,14 +78,6 @@ const CATEGORIES: CategoryMeta[] = [
     icon: "🌐",
     desc: "Government dignitaries, policy fellows, ecosystem observers & special invitees",
     teamLabel: "Delegation / Organization",
-  },
-  {
-    id: "management",
-    title: "Management Teams",
-    badge: "Management",
-    icon: "🛡️",
-    desc: "Core summit organizing committee, track heads & operational leadership",
-    teamLabel: "Organizing Cell / Department",
   },
 ];
 
@@ -205,9 +196,6 @@ export default function RegisterPage() {
 
   // ---------------------------------------------------------------- Successful Confirmation State
   if (registered) {
-    const isManagement = category === "management";
-    const targetDashboard = isManagement ? "https://isf-test-sb9i.vercel.app/dashboard" : "/status";
-
     return (
       <div className="reg-viewport">
         <style jsx>{`
@@ -342,15 +330,9 @@ export default function RegisterPage() {
           </div>
 
           <div className="actions">
-            {isManagement ? (
-              <a href="https://isf-test-sb9i.vercel.app/dashboard" className="btn-primary">
-                Open Staff Dashboard →
-              </a>
-            ) : (
-              <Link href="/status" className="btn-primary">
-                View Application & Summit Status →
-              </Link>
-            )}
+            <Link href="/status" className="btn-primary">
+              View Application & Summit Status →
+            </Link>
             <Link href="/signin" className="btn-secondary">
               Go to Sign In Page
             </Link>
@@ -623,30 +605,32 @@ export default function RegisterPage() {
               <span>Step 2</span> · Participant & Organisation Details
             </div>
             <div className="form-grid">
-              <div className="input-group">
-                <label className="input-label" htmlFor="teamName">
-                  <span>{activeCategory.teamLabel} <span className="input-req">*</span></span>
-                </label>
-                <input
-                  id="teamName"
-                  className="input-field"
-                  type="text"
-                  required
-                  placeholder={
-                    category === "startup_founder"
-                      ? "e.g. AgriSmart Robotics Pvt Ltd"
-                      : category === "student_innovator"
-                      ? "e.g. GIET AI Innovation Lab"
-                      : "e.g. Venture Network / Institution"
-                  }
-                  value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
-                />
-              </div>
+              {category !== "volunteer" && (
+                <div className="input-group">
+                  <label className="input-label" htmlFor="teamName">
+                    <span>{activeCategory.teamLabel} <span className="input-req">*</span></span>
+                  </label>
+                  <input
+                    id="teamName"
+                    className="input-field"
+                    type="text"
+                    required
+                    placeholder={
+                      category === "startup_founder"
+                        ? "e.g. AgriSmart Robotics Pvt Ltd"
+                        : category === "student_innovator"
+                        ? "e.g. GIET AI Innovation Lab"
+                        : "e.g. Venture Network / Institution"
+                    }
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div className="input-group">
                 <label className="input-label" htmlFor="fullName">
-                  <span>Team Lead / Full Name <span className="input-req">*</span></span>
+                  <span>{category === "volunteer" ? "Volunteer Full Name" : "Team Lead / Full Name"} <span className="input-req">*</span></span>
                 </label>
                 <input
                   id="fullName"
@@ -759,19 +743,21 @@ export default function RegisterPage() {
                 />
               </div>
 
-              <div className="input-group form-full">
-                <label className="input-label" htmlFor="teamMembers">
-                  <span>Attending Members Details (Names, roles & count)</span>
-                </label>
-                <textarea
-                  id="teamMembers"
-                  className="input-field"
-                  rows={2}
-                  placeholder="e.g. 3 members: Rahul (Tech Lead), Priya (Hardware Engineer), Akshat (CEO)"
-                  value={teamMembers}
-                  onChange={(e) => setTeamMembers(e.target.value)}
-                />
-              </div>
+              {category !== "volunteer" && (
+                <div className="input-group form-full">
+                  <label className="input-label" htmlFor="teamMembers">
+                    <span>Attending Members Details (Names, roles & count)</span>
+                  </label>
+                  <textarea
+                    id="teamMembers"
+                    className="input-field"
+                    rows={2}
+                    placeholder="e.g. 3 members: Rahul (Tech Lead), Priya (Hardware Engineer), Akshat (CEO)"
+                    value={teamMembers}
+                    onChange={(e) => setTeamMembers(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div className="input-group">
                 <label className="input-label" htmlFor="city">

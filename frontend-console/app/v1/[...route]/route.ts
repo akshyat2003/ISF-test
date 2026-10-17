@@ -503,13 +503,166 @@ async function handler(request: Request) {
           email: user?.email || email,
           fullName: user?.full_name || email.split("@")[0],
           mobile: user?.mobile_e164 || "",
+          altMobile: user?.alt_mobile || "",
           status: user?.status || "active",
+          category: user?.category || "",
+          teamName: user?.team_name || "",
+          teamMembers: user?.team_members || "",
+          domain: user?.domain || "",
+          city: user?.city || "",
+          state: user?.state || "",
+          country: user?.country || "",
+          linkedinUrl: user?.linkedin_url || "",
         },
         roles,
         editionAccess: [2026],
         permissions: getPermissionsForRoles(roles),
         mfaRequired: false,
       });
+    }
+
+    // ---------------------------------------------------- GET /v1/me/profile
+    if (path.includes("/me/profile") && method === "GET") {
+      const authHeader = request.headers.get("authorization") || "";
+      const cookieHeader = request.headers.get("cookie") || "";
+      const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
+      const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
+      if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
+      let payload: any;
+      try {
+        const verified = await jwtVerify(rawToken, JWT_SECRET);
+        payload = verified.payload;
+      } catch {
+        return Response.json({ message: "Invalid session token" }, { status: 401 });
+      }
+      const email = String(payload.email || "").toLowerCase().trim();
+      const rows = await sql`
+        select id, email, full_name as "fullName", mobile_e164 as mobile, status, category,
+               team_name as "teamName", team_members as "teamMembers", domain, alt_mobile as "altMobile",
+               city, state, country, linkedin_url as "linkedinUrl", created_at as "createdAt"
+        from user_accounts where lower(email) = ${email} limit 1
+      `;
+      const user = rows[0];
+      if (!user) return Response.json({ message: "User not found" }, { status: 404 });
+      const roleRows = await sql`select role from role_grants where user_id = ${user.id} and revoked_at is null`;
+      const roles = roleRows.map((r: any) => r.role);
+      return Response.json({ user: { ...user, roles } });
+    }
+
+    // ---------------------------------------------------- PUT /v1/me/profile
+    if (path.includes("/me/profile") && method === "PUT") {
+      const authHeader = request.headers.get("authorization") || "";
+      const cookieHeader = request.headers.get("cookie") || "";
+      const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
+      const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
+      if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
+      let payload: any;
+      try {
+        const verified = await jwtVerify(rawToken, JWT_SECRET);
+        payload = verified.payload;
+      } catch {
+        return Response.json({ message: "Invalid session token" }, { status: 401 });
+      }
+      const email = String(payload.email || "").toLowerCase().trim();
+      const body = await request.json();
+      const fullName = String(body.fullName || "").trim();
+      const mobile = String(body.mobile || "").trim();
+      const altMobile = String(body.altMobile || "").trim();
+      const city = String(body.city || "").trim();
+      const state = String(body.state || "").trim();
+      const country = String(body.country || "India").trim();
+      const linkedinUrl = String(body.linkedinUrl || "").trim();
+      const domain = String(body.domain || "").trim();
+      const teamName = String(body.teamName || "").trim();
+      const teamMembers = String(body.teamMembers || "").trim();
+
+      const [updated] = await sql`
+        update user_accounts
+        set full_name = coalesce(nullif(${fullName}, ''), full_name),
+            mobile_e164 = coalesce(nullif(${mobile}, ''), mobile_e164),
+            alt_mobile = coalesce(nullif(${altMobile}, ''), alt_mobile),
+            city = coalesce(nullif(${city}, ''), city),
+            state = coalesce(nullif(${state}, ''), state),
+            country = coalesce(nullif(${country}, ''), country),
+            linkedin_url = coalesce(nullif(${linkedinUrl}, ''), linkedin_url),
+            domain = coalesce(nullif(${domain}, ''), domain),
+            team_name = coalesce(nullif(${teamName}, ''), team_name),
+            team_members = coalesce(nullif(${teamMembers}, ''), team_members),
+            updated_at = now()
+        where lower(email) = ${email}
+        returning id, email, full_name as "fullName", mobile_e164 as mobile, status, category,
+                  team_name as "teamName", team_members as "teamMembers", domain, alt_mobile as "altMobile",
+                  city, state, country, linkedin_url as "linkedinUrl", updated_at as "updatedAt"
+      `;
+      return Response.json({ ok: true, user: updated, message: "Profile updated successfully." });
+    }
+
+    // ---------------------------------------------------- POST /v1/me/password
+    if (path.includes("/me/password") && method === "POST") {
+      const authHeader = request.headers.get("authorization") || "";
+      const cookieHeader = request.headers.get("cookie") || "";
+      const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
+      const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
+      if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
+      let payload: any;
+      try {
+        const verified = await jwtVerify(rawToken, JWT_SECRET);
+        payload = verified.payload;
+      } catch {
+        return Response.json({ message: "Invalid session token" }, { status: 401 });
+      }
+      const email = String(payload.email || "").toLowerCase().trim();
+      const body = await request.json();
+      const currentPassword = String(body.currentPassword || "").trim();
+      const newPassword = String(body.newPassword || "").trim();
+
+      if (newPassword.length < 6) {
+        return Response.json({ message: "New password must be at least 6 characters long." }, { status: 400 });
+      }
+
+      const rows = await sql`select id, password_hash from user_accounts where lower(email) = ${email} limit 1`;
+      const user = rows[0];
+      if (!user) return Response.json({ message: "User not found" }, { status: 404 });
+
+      if (user.password_hash && currentPassword) {
+        const valid = verifyPassword(currentPassword, user.password_hash);
+        if (!valid) {
+          return Response.json({ message: "Current password does not match our records." }, { status: 400 });
+        }
+      }
+
+      const newHash = hashPassword(newPassword);
+      await sql`update user_accounts set password_hash = ${newHash}, updated_at = now() where id = ${user.id}`;
+      return Response.json({ ok: true, message: "Your password has been updated successfully." });
+    }
+
+    // ---------------------------------------------------- GET /v1/manage/editions/:year/applications
+    if (path.match(/\/manage\/editions\/\d+\/applications/) && method === "GET") {
+      try {
+        const apps = await sql`
+          select a.id, a.edition_id as "edition", a.status, a.submitted_at as "submittedAt",
+                 s.name as "startupName", s.city, s.state, u.full_name as "teamLeadName", u.email as "teamLeadEmail"
+          from applications a
+          join startups s on a.startup_id = s.id
+          left join user_accounts u on a.submitted_by = u.id
+          order by a.submitted_at desc
+        `;
+        return Response.json({
+          edition: 2026,
+          counts: { under_review: apps.length, selected: 0, not_selected: 0, withdrawn: 0 },
+          selectionLimit: 50,
+          selectedTotal: 0,
+          items: apps,
+        });
+      } catch {
+        return Response.json({
+          edition: 2026,
+          counts: { under_review: 0, selected: 0, not_selected: 0, withdrawn: 0 },
+          selectionLimit: 50,
+          selectedTotal: 0,
+          items: [],
+        });
+      }
     }
 
     // ---------------------------------------------------- GET /v1/public/editions

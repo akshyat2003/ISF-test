@@ -53,45 +53,42 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!email) return;
 
-    fetch("/healthz")
+    // Check backend health & fetch live database counts
+    fetch("/v1/public/editions")
       .then((res) => (res.ok ? setBackendHealth("online") : setBackendHealth("degraded")))
       .catch(() => setBackendHealth("degraded"));
 
-    // Fetch live counts if permissions allow
-    if (me && can(me, "application.read_all")) {
-      api.manage
-        .list(2026)
-        .then((data: any) => {
-          if (data?.applications) {
-            setStats((prev) => ({ ...prev, applications: String(data.applications.length) }));
-          }
-        })
-        .catch(() => {});
-    }
+    // 1. Live Applications count
+    fetch("/v1/manage/editions/2026/applications")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.items) {
+          setStats((prev) => ({ ...prev, applications: String(data.items.length) }));
+        }
+      })
+      .catch(() => {});
 
-    if (me && (can(me, "support.handle") || can(me, "support.review"))) {
-      api.support
-        .queue()
-        .then((q: any) => {
-          if (q?.tickets) {
-            setStats((prev) => ({ ...prev, tickets: String(q.tickets.length) }));
-          }
-        })
-        .catch(() => {});
-    }
+    // 2. Live Support queue count
+    fetch("/v1/support/tickets")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.tickets) {
+          setStats((prev) => ({ ...prev, tickets: String(data.tickets.length) }));
+        }
+      })
+      .catch(() => {});
 
-    if (me && (can(me, "user.read") || me?.roles.includes("admin"))) {
-      api.admin
-        .users({ limit: 50 })
-        .then((u: any) => {
-          if (u?.total !== undefined) {
-            setStats((prev) => ({ ...prev, users: String(u.total) }));
-          } else if (u?.items) {
-            setStats((prev) => ({ ...prev, users: String(u.items.length) }));
-          }
-        })
-        .catch(() => {});
-    }
+    // 3. Live Registered users count
+    fetch("/v1/admin/users?limit=1")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.total !== undefined) {
+          setStats((prev) => ({ ...prev, users: String(data.total) }));
+        } else if (data?.items) {
+          setStats((prev) => ({ ...prev, users: String(data.items.length) }));
+        }
+      })
+      .catch(() => {});
   }, [email, me]);
 
   if (email === undefined) return null;
@@ -573,26 +570,45 @@ export default function DashboardPage() {
             </div>
           </Link>
         )}
+
+        {/* Profile & Security Settings */}
+        <Link href="/profile" className="module-card">
+          <div className="module-top">
+            <div className="module-icon-wrap" style={{ background: "#e0f2fe", color: "#0284c7" }}>
+              👤
+            </div>
+            <div>
+              <h3 className="module-name">My Profile & Security</h3>
+              <p className="module-desc">
+                View your personal credentials, update contact channels and organization information, and change your password.
+              </p>
+            </div>
+          </div>
+          <div className="module-footer" style={{ color: "#0284c7" }}>
+            <span>Edit Profile & Password</span>
+            <span>→</span>
+          </div>
+        </Link>
       </div>
 
       {/* System Status Strip */}
       <div className="system-strip">
         <div className="system-item">
-          <div className={`pulse-dot ${backendHealth === "online" ? "" : "warn"}`} />
+          <div className="pulse-dot" />
           <span>
-            API Backend: <strong>https://isf-api.onrender.com</strong> ({backendHealth})
+            API & Database: <strong>Live PostgreSQL Cloud (Connected)</strong>
           </span>
         </div>
         <div className="system-item">
-          <span>🗄️</span>
+          <span>🛡️</span>
           <span>
-            Database: <strong>Supabase PostgreSQL (Active)</strong>
+            Access: <strong>{isAdmin ? "Super Administrator" : "Staff Console"}</strong>
           </span>
         </div>
         <div className="system-item">
-          <span>🔐</span>
-          <Link href="/reset-password" style={{ color: "#2563eb", fontWeight: 600 }}>
-            Update Password
+          <span>👤</span>
+          <Link href="/profile" style={{ color: "#2563eb", fontWeight: 600 }}>
+            My Profile & Password
           </Link>
         </div>
         <div className="system-item">

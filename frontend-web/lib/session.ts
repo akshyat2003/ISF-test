@@ -4,16 +4,17 @@ import { createSession } from "@sj/web-session";
 
 const resolveApiUrl = () => {
   if (typeof window !== "undefined") {
-    const envUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (envUrl && envUrl.startsWith("http") && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
-      return envUrl;
-    }
+    // In production / on Vercel, always use same-origin relative URL so cookies are sent & hits live DB
     if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
       return "";
     }
-    return envUrl || "http://localhost:4000";
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (envUrl && envUrl.startsWith("http")) {
+      return envUrl;
+    }
+    return "http://localhost:4000";
   }
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  return "";
 };
 
 export const { api, authMode, signInMethods, startSignIn, verifyCode, signOut, useSessionIdentity, storeSessionToken } = createSession({

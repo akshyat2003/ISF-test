@@ -119,7 +119,7 @@ function Users() {
         </div>
         {can(me, "role.assign") && (
           <button className="btn btn-primary" onClick={() => { setShowCreate(!showCreate); setCreateResult(null); }}>
-            {showCreate ? "Close Form" : "+ Create Credentials (Support / Staff / Jury)"}
+            {showCreate ? "Close Form" : "+ Create Credentials (Admin / Management / Support / Jury)"}
           </button>
         )}
       </div>
@@ -128,19 +128,19 @@ function Users() {
         <section className="card" style={{ margin: "16px 0 24px", borderColor: "var(--accent)", background: "#fafafa" }}>
           <h2 style={{ marginTop: 0 }}>Issue User & Staff Credentials</h2>
           <p className="muted small">
-            Admin can directly create accounts with custom or auto-generated passwords for <strong>Customer Support</strong>, <strong>Jury Members</strong>, <strong>Staff</strong>, and other roles.
+            Admin can directly create accounts with custom or auto-generated passwords for <strong>Administrators</strong>, <strong>Management Team</strong>, <strong>Customer Support</strong>, <strong>Jury Members</strong>, and other roles.
           </p>
           <form onSubmit={handleCreateCredential} style={{ display: "grid", gap: 14 }}>
             <div className="two">
               <label>Full Name *
-                <input type="text" required placeholder="e.g. Ramesh Kumar (Support Desk)" value={newFullName} onChange={(e) => setNewFullName(e.target.value)} />
+                <input type="text" required placeholder="e.g. Ramesh Kumar (Management)" value={newFullName} onChange={(e) => setNewFullName(e.target.value)} />
               </label>
               <label>Role to Grant *
                 <select value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}>
+                  <option value="admin">Administrator (Full Console & Staff Access)</option>
+                  <option value="management">Management Team (Evaluations & Approvals)</option>
                   <option value="customer_support">Customer Support (Help Desk & Tickets)</option>
                   <option value="jury_member">Jury Member (Pitch Scoring & Evaluations)</option>
-                  <option value="management">Management Team (Evaluations & Approvals)</option>
-                  <option value="admin">Administrator (Full Console Access)</option>
                   <option value="volunteer">Volunteer (Participant Support)</option>
                   <option value="delegate">Delegate (VIP / Attendee)</option>
                   <option value="startup_team_leader">Startup Team Leader</option>

@@ -15,8 +15,11 @@ export function AccountLink() {
   }
 
   return (
-    <span className="small muted">
-      {email} ·{" "}
+    <span className="small" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+      <Link href="/profile" style={{ fontWeight: 600, color: "var(--accent)", textDecoration: "none" }}>
+        👤 My Profile
+      </Link>
+      <span className="muted">· {email} ·</span>
       <a href="#" onClick={(e) => { e.preventDefault(); void signOut(); }}>Sign out</a>
     </span>
   );
