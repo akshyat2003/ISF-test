@@ -1,18 +1,19 @@
 "use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut, useSessionIdentity } from "@/lib/session";
 
 export function AccountLink() {
   const email = useSessionIdentity();
+  const pathname = usePathname();
+
   if (email === undefined) return null;
+
   if (!email) {
-    return (
-      <span style={{ display: "inline-flex", gap: 12, alignItems: "center" }}>
-        <Link href="/signup" style={{ fontWeight: 600, color: "var(--accent)" }}>Sign up</Link>
-        <Link href="/signin">Sign in</Link>
-      </span>
-    );
+    if (pathname === "/signin") return null;
+    return <Link href="/signin">Sign In</Link>;
   }
+
   return (
     <span className="small muted">
       {email} ·{" "}
@@ -20,3 +21,4 @@ export function AccountLink() {
     </span>
   );
 }
+

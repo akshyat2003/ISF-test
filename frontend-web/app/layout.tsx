@@ -23,7 +23,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <nav className="nav" aria-label="Main">
               <Link href="/register">Register</Link>
-              <Link href="/signin">Sign In</Link>
               <AccountLink />
             </nav>
           </div>
