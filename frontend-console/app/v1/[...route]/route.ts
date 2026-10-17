@@ -379,7 +379,7 @@ async function handler(request: Request) {
       const password = typeof body.password === "string" ? body.password.trim() : "";
       const category = String(body.category || body.role || "startup_founder");
       const teamName = String(body.teamName || body.startupName || "").trim();
-      const teamMembers = String(body.teamMembers || "").trim();
+      const photoUrl = typeof body.photoUrl === "string" ? body.photoUrl.trim() : null;
       const mobile = String(body.mobile || body.phoneNumber || "").trim();
       const altMobile = String(body.altMobile || "").trim();
       const domain = String(body.domain || "").trim();
@@ -388,6 +388,15 @@ async function handler(request: Request) {
       const country = String(body.country || "India").trim();
       const linkedinUrl = String(body.linkedinUrl || "").trim();
 
+      // Parse structured members
+      const rawMembers: Array<any> = Array.isArray(body.members) ? body.members : [];
+      const members: Array<{ name: string; photoUrl?: string; phone: string; email: string }> = rawMembers.slice(0, 5).map((m: any) => ({
+        name: String(m?.name || "").trim(),
+        photoUrl: typeof m?.photoUrl === "string" ? m.photoUrl.trim() : undefined,
+        phone: String(m?.phone || "").trim(),
+        email: String(m?.email || "").toLowerCase().trim(),
+      }));
+
       if (!email || !email.includes("@")) {
         return Response.json({ message: "A valid email address is required" }, { status: 400 });
       }
@@ -395,9 +404,31 @@ async function handler(request: Request) {
         return Response.json({ message: "Full name is required" }, { status: 400 });
       }
 
+      const isStartupLeader = category === "startup_founder" || category === "startup_team_leader" || category === "startup_leader";
+
+      // Ensure DB table & columns exist
+      try {
+        await sql`
+          alter table user_accounts add column if not exists photo_url text;
+          alter table user_accounts add column if not exists team_members_json jsonb;
+          create table if not exists startup_team_members (
+            id uuid primary key default gen_random_uuid(),
+            startup_id uuid references startups(id) on delete cascade,
+            leader_user_id uuid references user_accounts(id) on delete cascade,
+            name text not null,
+            photo_url text,
+            phone text not null,
+            email text not null,
+            created_at timestamptz not null default now()
+          );
+        `;
+      } catch (err) {
+        console.warn("[CONSOLE DB SCHEMA ENSURE]", err);
+      }
+
       // Map category to system role
       let role = "delegate";
-      if (category === "startup_founder" || category === "startup_team_leader") role = "startup_team_leader";
+      if (isStartupLeader) role = "startup_team_leader";
       else if (category === "student_innovator" || category === "startup_team_member") role = "startup_team_member";
       else if (category === "volunteer") role = "volunteer";
       else if (category === "mentor" || category === "jury_member") role = "jury_member";
@@ -407,15 +438,21 @@ async function handler(request: Request) {
       const passwordHash = password ? hashPassword(password) : null;
       const authSub = `dev|${email}`;
 
+      const teamMembersSummary = members.length > 0
+        ? members.map((m, i) => `${i + 1}. ${m.name} (${m.email}, ${m.phone})`).join("; ")
+        : String(body.teamMembers || "").trim();
+
       // Insert or update user_accounts
       const [user] = await sql`
         insert into user_accounts (
           auth_subject, email, full_name, mobile_e164, password_hash,
-          status, category, team_name, team_members, domain, alt_mobile, city, state, country, linkedin_url
+          status, category, team_name, team_members, team_members_json, photo_url,
+          domain, alt_mobile, city, state, country, linkedin_url
         )
         values (
           ${authSub}, ${email}, ${fullName}, ${mobile || null}, ${passwordHash},
-          'active', ${category}, ${teamName || null}, ${teamMembers || null}, ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
+          'active', ${category}, ${teamName || null}, ${teamMembersSummary || null}, ${JSON.stringify(members)}::jsonb, ${photoUrl},
+          ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
         )
         on conflict (lower(email)) where email is not null do update
         set auth_subject = ${authSub},
@@ -425,7 +462,9 @@ async function handler(request: Request) {
             status = 'active',
             category = ${category},
             team_name = coalesce(${teamName || null}, user_accounts.team_name),
-            team_members = coalesce(${teamMembers || null}, user_accounts.team_members),
+            team_members = coalesce(${teamMembersSummary || null}, user_accounts.team_members),
+            team_members_json = coalesce(${JSON.stringify(members)}::jsonb, user_accounts.team_members_json),
+            photo_url = coalesce(${photoUrl}, user_accounts.photo_url),
             domain = coalesce(${domain || null}, user_accounts.domain),
             alt_mobile = coalesce(${altMobile || null}, user_accounts.alt_mobile),
             city = coalesce(${city || null}, user_accounts.city),
@@ -453,19 +492,48 @@ async function handler(request: Request) {
       `;
 
       // If teamName provided, link to startups
+      let startupId: string | null = null;
       if (teamName) {
-        const [startup] = await sql`
-          insert into startups (name, origin, created_by, city, state)
-          values (${teamName}, 'applicant', ${userId}, ${city || null}, ${state || null})
-          on conflict do nothing
-          returning id
+        const [existingStartup] = await sql`
+          select id from startups where name_normalized = lower(regexp_replace(trim(${teamName}), '\\s+', ' ', 'g')) limit 1
         `;
-        if (startup) {
+        if (existingStartup) {
+          startupId = existingStartup.id;
+        } else {
+          const [newStartup] = await sql`
+            insert into startups (name, origin, created_by, city, state)
+            values (${teamName}, 'applicant', ${userId}, ${city || null}, ${state || null})
+            returning id
+          `;
+          startupId = newStartup?.id || null;
+        }
+
+        if (startupId) {
           await sql`
             insert into startup_memberships (startup_id, user_id, position)
-            values (${startup.id}, ${userId}, ${role === 'startup_team_leader' ? 'leader' : 'member'})
-            on conflict do nothing
+            values (${startupId}, ${userId}, ${role === 'startup_team_leader' ? 'leader' : 'member'})
+            on conflict (startup_id, user_id) do update set position = ${role === 'startup_team_leader' ? 'leader' : 'member'}
           `;
+        }
+      }
+
+      // Store individual team members in startup_team_members table
+      if (members.length > 0) {
+        await sql`delete from startup_team_members where leader_user_id = ${userId}`;
+        for (const m of members) {
+          if (m && m.name && m.email) {
+            await sql`
+              insert into startup_team_members (startup_id, leader_user_id, name, photo_url, phone, email)
+              values (
+                ${startupId},
+                ${userId},
+                ${m.name},
+                ${m.photoUrl || null},
+                ${m.phone},
+                ${m.email}
+              )
+            `;
+          }
         }
       }
 

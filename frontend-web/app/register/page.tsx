@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { storeSessionToken } from "@/lib/session";
@@ -24,7 +24,7 @@ const CATEGORIES: CategoryMeta[] = [
     title: "Startup Leader",
     badge: "Startup Leaders",
     icon: "🚀",
-    desc: "Founders, co-founders & leaders building early-stage or growth ventures",
+    desc: "Founders, co-founders & startup leaders building early-stage or growth ventures",
     teamLabel: "Startup / Company Name",
   },
   {
@@ -61,23 +61,75 @@ const DOMAINS = [
   "Other / Multi-disciplinary",
 ];
 
+export interface TeamMemberInput {
+  id: string;
+  name: string;
+  photoUrl: string;
+  phone: string;
+  email: string;
+}
+
+// Client-side image compressor for lightweight, fast data URLs
+function compressImageFile(file: File, maxWidth = 400, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith("image/")) {
+      reject(new Error("Please select an image file (PNG, JPG, WEBP)."));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxWidth) {
+            width = Math.round((width * maxWidth) / height);
+            height = maxWidth;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => reject(new Error("Failed to load image file."));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("Failed to read file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function RegisterPage() {
   const router = useRouter();
 
   const [category, setCategory] = useState<CategoryId>("startup_founder");
   const [teamName, setTeamName] = useState("");
   const [fullName, setFullName] = useState("");
+  const [leadPhoto, setLeadPhoto] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [mobile, setMobile] = useState("");
   const [altMobile, setAltMobile] = useState("");
   const [domain, setDomain] = useState("AI & Generative Intelligence");
-  const [teamMembers, setTeamMembers] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [country, setCountry] = useState("India");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+
+  // Team members (1 to 5 members, compulsory for startup leader)
+  const [members, setMembers] = useState<TeamMemberInput[]>([
+    { id: "1", name: "", photoUrl: "", phone: "", email: "" },
+  ]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,9 +138,73 @@ export default function RegisterPage() {
     fullName: string;
     category: string;
     role: string;
+    teamName: string;
+    leadPhoto: string;
+    members: TeamMemberInput[];
   } | null>(null);
 
   const activeCategory = CATEGORIES.find((c) => c.id === category) || CATEGORIES[0];
+  const isStartupLeader = category === "startup_founder";
+
+  // Team lead photo upload handler
+  const leadFileInputRef = useRef<HTMLInputElement>(null);
+  async function handleLeadPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressImageFile(file);
+      setLeadPhoto(dataUrl);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message || "Failed to process photo.");
+    }
+  }
+
+  // Member photo upload handler
+  async function handleMemberPhotoChange(memberId: string, file: File) {
+    try {
+      const dataUrl = await compressImageFile(file);
+      setMembers((prev) =>
+        prev.map((m) => (m.id === memberId ? { ...m, photoUrl: dataUrl } : m))
+      );
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message || "Failed to process member photo.");
+    }
+  }
+
+  // Add team member (max 5)
+  function handleAddMember() {
+    if (members.length >= 5) {
+      setError("Maximum 5 team members are allowed.");
+      return;
+    }
+    const newId = String(Date.now());
+    setMembers((prev) => [
+      ...prev,
+      { id: newId, name: "", photoUrl: "", phone: "", email: "" },
+    ]);
+  }
+
+  // Remove team member (min 1)
+  function handleRemoveMember(memberId: string) {
+    if (members.length <= 1) {
+      setError("At least one team member detail is required.");
+      return;
+    }
+    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+  }
+
+  // Update member field
+  function handleMemberFieldChange(
+    memberId: string,
+    field: "name" | "phone" | "email",
+    value: string
+  ) {
+    setMembers((prev) =>
+      prev.map((m) => (m.id === memberId ? { ...m, [field]: value } : m))
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,20 +212,90 @@ export default function RegisterPage() {
 
     const normEmail = email.trim().toLowerCase();
     if (!normEmail || !normEmail.includes("@")) {
-      setError("Please provide a valid email address.");
+      setError("Please provide a valid official email address.");
       return;
     }
     if (!fullName.trim()) {
-      setError("Please enter your team lead / full name.");
+      setError("Please enter the team lead / full name.");
       return;
     }
     if (!password || password.length < 6) {
       setError("Please enter a password of at least 6 characters.");
       return;
     }
-    if (!mobile.trim()) {
-      setError("Please provide a primary phone number.");
-      return;
+
+    // Startup Leader Strict Compulsory Validations
+    if (isStartupLeader) {
+      if (!teamName.trim()) {
+        setError("Please enter your Startup / Team Name.");
+        return;
+      }
+      if (!leadPhoto) {
+        setError("Please upload the Team Lead Photo.");
+        return;
+      }
+      if (!mobile.trim()) {
+        setError("Please enter your Primary Phone Number.");
+        return;
+      }
+      if (!altMobile.trim()) {
+        setError("Please enter your Alternate Phone Number.");
+        return;
+      }
+      if (!domain.trim()) {
+        setError("Please select a Domain / Sector.");
+        return;
+      }
+      if (!city.trim()) {
+        setError("Please enter your City.");
+        return;
+      }
+      if (!state.trim()) {
+        setError("Please enter your State.");
+        return;
+      }
+      if (!country.trim()) {
+        setError("Please enter your Country.");
+        return;
+      }
+      if (!linkedinUrl.trim()) {
+        setError("Please enter your LinkedIn Profile / URL.");
+        return;
+      }
+      if (members.length === 0) {
+        setError("Please provide details for at least 1 team member (max 5 members).");
+        return;
+      }
+      if (members.length > 5) {
+        setError("Maximum 5 team members are allowed.");
+        return;
+      }
+      // Check every member's details
+      for (let i = 0; i < members.length; i++) {
+        const m = members[i];
+        if (!m.name.trim()) {
+          setError(`Please enter the full name for Member #${i + 1}.`);
+          return;
+        }
+        if (!m.photoUrl) {
+          setError(`Please upload a photo for Member #${i + 1} (${m.name || "Member"}).`);
+          return;
+        }
+        if (!m.phone.trim()) {
+          setError(`Please enter a phone number for Member #${i + 1} (${m.name}).`);
+          return;
+        }
+        if (!m.email.trim() || !m.email.includes("@")) {
+          setError(`Please enter a valid email address for Member #${i + 1} (${m.name}).`);
+          return;
+        }
+      }
+    } else {
+      // General validation for other categories
+      if (!mobile.trim()) {
+        setError("Please provide a primary phone number.");
+        return;
+      }
     }
 
     setBusy(true);
@@ -122,16 +308,17 @@ export default function RegisterPage() {
           category,
           teamName: teamName.trim(),
           fullName: fullName.trim(),
+          photoUrl: leadPhoto || null,
           email: normEmail,
           password: password.trim(),
           mobile: mobile.trim(),
           altMobile: altMobile.trim(),
           domain,
-          teamMembers: teamMembers.trim(),
           city: city.trim(),
           state: state.trim(),
           country: country.trim(),
           linkedinUrl: linkedinUrl.trim(),
+          members: isStartupLeader ? members : [],
         }),
       });
 
@@ -149,7 +336,10 @@ export default function RegisterPage() {
         email: normEmail,
         fullName: fullName.trim(),
         category: activeCategory.title,
-        role: data.role || "delegate",
+        role: data.role || "startup_team_leader",
+        teamName: teamName.trim(),
+        leadPhoto: leadPhoto,
+        members: isStartupLeader ? members : [],
       });
     } catch (err) {
       setError((err as Error).message || "An unexpected error occurred. Please try again.");
@@ -175,7 +365,7 @@ export default function RegisterPage() {
             background: #ffffff;
             border-radius: 24px;
             padding: 44px 36px;
-            max-width: 580px;
+            max-width: 640px;
             width: 100%;
             box-shadow: 0 20px 45px -10px rgba(30, 58, 138, 0.15);
             border: 1px solid #e0e7ff;
@@ -191,7 +381,7 @@ export default function RegisterPage() {
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 20px;
+            margin: 0 auto 16px;
             box-shadow: 0 0 0 8px #d1fae5;
           }
           .success-title {
@@ -206,13 +396,22 @@ export default function RegisterPage() {
             line-height: 1.5;
             margin: 0 0 24px;
           }
+          .lead-avatar-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #3b82f6;
+            margin: 0 auto 16px;
+            display: block;
+          }
           .info-box {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 16px;
             padding: 20px;
             text-align: left;
-            margin-bottom: 28px;
+            margin-bottom: 24px;
           }
           .info-row {
             display: flex;
@@ -231,6 +430,39 @@ export default function RegisterPage() {
           .info-val {
             color: #0f172a;
             font-weight: 600;
+          }
+          .members-summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+          }
+          .members-summary-table th {
+            background: #f1f5f9;
+            padding: 8px 10px;
+            text-align: left;
+            color: #475569;
+            font-weight: 600;
+          }
+          .members-summary-table td {
+            padding: 8px 10px;
+            border-top: 1px solid #e2e8f0;
+          }
+          .email-banner {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 13px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-align: left;
           }
           .actions {
             display: flex;
@@ -269,28 +501,76 @@ export default function RegisterPage() {
 
         <div className="success-card">
           <div className="success-icon">✓</div>
+          {registered.leadPhoto && (
+            <img src={registered.leadPhoto} alt="Team Lead" className="lead-avatar-preview" />
+          )}
           <h1 className="success-title">Registration Confirmed!</h1>
           <p className="success-sub">
-            Welcome to <strong>Udbhav @ Startup Jathara 2026</strong>. Your profile and login credentials have been created and authenticated.
+            Welcome to <strong>Udbhav @ Startup Jathara 2026</strong>. Your startup profile and team credentials have been registered into the database.
           </p>
 
+          <div className="email-banner">
+            <span>✉️</span>
+            <span>A confirmation email has been dispatched to <strong>{registered.email}</strong> with full team details.</span>
+          </div>
+
           <div className="info-box">
+            {registered.teamName && (
+              <div className="info-row">
+                <span className="info-label">Startup Name:</span>
+                <span className="info-val">{registered.teamName}</span>
+              </div>
+            )}
             <div className="info-row">
-              <span className="info-label">Full Name:</span>
+              <span className="info-label">Team Lead:</span>
               <span className="info-val">{registered.fullName}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Email:</span>
+              <span className="info-label">Official Email:</span>
               <span className="info-val">{registered.email}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Category:</span>
+              <span className="info-label">Track:</span>
               <span className="info-val">{registered.category}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Status:</span>
+              <span className="info-label">Account Status:</span>
               <span className="info-val" style={{ color: "#059669" }}>Active · Logged In</span>
             </div>
+
+            {registered.members.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <span className="info-label" style={{ fontWeight: 600, color: "#1e293b" }}>
+                  Registered Team Members ({registered.members.length} / 5):
+                </span>
+                <table className="members-summary-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Photo</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registered.members.map((m, idx) => (
+                      <tr key={m.id || idx}>
+                        <td>{idx + 1}</td>
+                        <td>
+                          {m.photoUrl ? (
+                            <img src={m.photoUrl} alt={m.name} style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }} />
+                          ) : "—"}
+                        </td>
+                        <td><strong>{m.name}</strong></td>
+                        <td style={{ color: "#2563eb" }}>{m.email}</td>
+                        <td>{m.phone}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div className="actions">
@@ -338,14 +618,14 @@ export default function RegisterPage() {
           box-shadow: 0 4px 12px rgba(30, 58, 138, 0.05);
         }
         .reg-title {
-          font-size: 36px;
+          font-size: 34px;
           font-weight: 800;
           color: #0f172a;
           margin: 0 0 10px;
           letter-spacing: -0.02em;
         }
         .reg-subtitle {
-          font-size: 16px;
+          font-size: 15px;
           color: #64748b;
           max-width: 680px;
           margin: 0 auto;
@@ -364,27 +644,38 @@ export default function RegisterPage() {
           text-transform: uppercase;
           letter-spacing: 0.05em;
           color: #1e3a8a;
-          margin: 0 0 16px;
+          margin: 28px 0 16px;
           display: flex;
           align-items: center;
-          gap: 8px;
+          justify-content: space-between;
+          border-bottom: 1px solid #f1f5f9;
+          padding-bottom: 10px;
+        }
+        .section-label:first-of-type {
+          margin-top: 0;
+        }
+        .section-tag {
+          font-size: 12px;
+          font-weight: 600;
+          color: #64748b;
+          text-transform: none;
         }
         .categories-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-          gap: 12px;
-          margin-bottom: 32px;
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          gap: 14px;
+          margin-bottom: 28px;
         }
         .category-pill {
           background: #f8fafc;
           border: 1.5px solid #e2e8f0;
           border-radius: 14px;
-          padding: 14px 16px;
+          padding: 16px;
           cursor: pointer;
           transition: all 0.2s ease;
           display: flex;
           align-items: flex-start;
-          gap: 12px;
+          gap: 14px;
           text-align: left;
         }
         .category-pill:hover {
@@ -397,27 +688,104 @@ export default function RegisterPage() {
           box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15);
         }
         .cat-icon {
-          font-size: 24px;
+          font-size: 26px;
           flex-shrink: 0;
           margin-top: 2px;
         }
         .cat-title {
-          font-size: 13px;
+          font-size: 15px;
           font-weight: 700;
           color: #0f172a;
-          margin: 0 0 2px;
+          margin: 0 0 4px;
           line-height: 1.3;
         }
         .cat-desc {
-          font-size: 11px;
+          font-size: 12px;
           color: #64748b;
-          line-height: 1.3;
+          line-height: 1.4;
           margin: 0;
         }
+
+        /* Lead Photo Upload Box */
+        .photo-uploader {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          background: #f8fafc;
+          border: 1.5px dashed #cbd5e1;
+          border-radius: 16px;
+          padding: 16px 20px;
+          margin-bottom: 24px;
+          transition: border-color 0.2s ease;
+        }
+        .photo-uploader:hover {
+          border-color: #2563eb;
+          background: #f0f7ff;
+        }
+        .photo-avatar-box {
+          width: 84px;
+          height: 84px;
+          border-radius: 16px;
+          background: #e2e8f0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          flex-shrink: 0;
+          border: 2px solid #cbd5e1;
+        }
+        .photo-avatar-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .photo-avatar-placeholder {
+          font-size: 32px;
+          color: #64748b;
+        }
+        .photo-upload-meta {
+          flex: 1;
+        }
+        .photo-upload-title {
+          font-size: 14px;
+          font-weight: 700;
+          color: #0f172a;
+          margin: 0 0 4px;
+        }
+        .photo-upload-sub {
+          font-size: 12px;
+          color: #64748b;
+          margin: 0 0 10px;
+        }
+        .photo-btn-row {
+          display: flex;
+          gap: 10px;
+        }
+        .btn-photo-pick {
+          background: #2563eb;
+          color: #ffffff;
+          border: none;
+          padding: 6px 14px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .btn-photo-remove {
+          background: #fee2e2;
+          color: #b91c1c;
+          border: 1px solid #fecaca;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
         .form-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-          gap: 20px;
+          gap: 18px;
           margin-bottom: 24px;
         }
         .form-full {
@@ -437,10 +805,11 @@ export default function RegisterPage() {
         }
         .input-req {
           color: #ef4444;
+          font-weight: bold;
         }
         .input-field {
           width: 100%;
-          padding: 12px 16px;
+          padding: 11px 14px;
           border-radius: 10px;
           border: 1.5px solid #cbd5e1;
           font-size: 14px;
@@ -469,6 +838,113 @@ export default function RegisterPage() {
           font-weight: 600;
           cursor: pointer;
         }
+
+        /* Members Section */
+        .members-container {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          margin-bottom: 28px;
+        }
+        .member-card {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          padding: 20px;
+          transition: all 0.2s ease;
+        }
+        .member-card:hover {
+          border-color: #cbd5e1;
+        }
+        .member-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 16px;
+        }
+        .member-pill {
+          background: #eff6ff;
+          color: #1e40af;
+          font-size: 12px;
+          font-weight: 700;
+          padding: 4px 10px;
+          border-radius: 6px;
+          border: 1px solid #bfdbfe;
+        }
+        .btn-remove-member {
+          background: #fee2e2;
+          border: 1px solid #fecaca;
+          color: #b91c1c;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 4px 10px;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .member-body-flex {
+          display: flex;
+          gap: 20px;
+          align-items: flex-start;
+        }
+        .member-photo-col {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          width: 90px;
+          flex-shrink: 0;
+        }
+        .member-avatar-box {
+          width: 76px;
+          height: 76px;
+          border-radius: 12px;
+          background: #e2e8f0;
+          border: 1.5px dashed #94a3b8;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          cursor: pointer;
+          transition: border-color 0.2s;
+        }
+        .member-avatar-box:hover {
+          border-color: #2563eb;
+        }
+        .member-avatar-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .member-inputs-grid {
+          flex: 1;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 14px;
+        }
+        .btn-add-member {
+          background: #ffffff;
+          border: 1.5px dashed #2563eb;
+          color: #2563eb;
+          padding: 12px 20px;
+          border-radius: 12px;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: all 0.2s ease;
+        }
+        .btn-add-member:hover:not(:disabled) {
+          background: #eff6ff;
+        }
+        .btn-add-member:disabled {
+          border-color: #cbd5e1;
+          color: #94a3b8;
+          cursor: not-allowed;
+        }
+
         .error-banner {
           background: #fef2f2;
           border: 1px solid #fecaca;
@@ -518,6 +994,21 @@ export default function RegisterPage() {
         .footer-links a:hover {
           text-decoration: underline;
         }
+
+        @media (max-width: 640px) {
+          .reg-card {
+            padding: 24px 18px;
+          }
+          .member-body-flex {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .member-photo-col {
+            width: 100%;
+            flex-direction: row;
+            justify-content: flex-start;
+          }
+        }
       `}</style>
 
       <div className="reg-container">
@@ -527,9 +1018,9 @@ export default function RegisterPage() {
             <img src="/logos/udbhav.png" alt="Udbhav" style={{ width: 22, height: 22, objectFit: "contain" }} />
             <span>Startup Jathara 2026 · Dandakaranya</span>
           </div>
-          <h1 className="reg-title">Summit Delegate & Participant Registration</h1>
+          <h1 className="reg-title">Summit Registration</h1>
           <p className="reg-subtitle">
-            Register your startup leader, student innovator, or volunteer credentials for the Dandakaranya Innovation Summit (18–20 December 2026 at GIET University).
+            Register your startup credentials and team member details for the Dandakaranya Innovation Summit (18–20 December 2026 at GIET University).
           </p>
         </div>
 
@@ -544,7 +1035,8 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit}>
             {/* 1. Category Selection */}
             <div className="section-label">
-              <span>Step 1</span> · Choose Your Registration Category
+              <span>Step 1 · Choose Your Track</span>
+              <span className="section-tag">Role selection</span>
             </div>
             <div className="categories-grid">
               {CATEGORIES.map((cat) => (
@@ -564,10 +1056,62 @@ export default function RegisterPage() {
               ))}
             </div>
 
-            {/* 2. Primary Information */}
+            {/* 2. Startup Leader Photo Upload */}
             <div className="section-label">
-              <span>Step 2</span> · Participant & Organisation Details
+              <span>Step 2 · Team Lead & Startup Details</span>
+              <span className="section-tag">{isStartupLeader ? "All fields compulsory *" : "Required details *"}</span>
             </div>
+
+            {isStartupLeader && (
+              <div className="photo-uploader">
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={leadFileInputRef}
+                  style={{ display: "none" }}
+                  onChange={handleLeadPhotoChange}
+                />
+                <div
+                  className="photo-avatar-box"
+                  onClick={() => leadFileInputRef.current?.click()}
+                  style={{ cursor: "pointer" }}
+                >
+                  {leadPhoto ? (
+                    <img src={leadPhoto} alt="Leader Preview" className="photo-avatar-img" />
+                  ) : (
+                    <span className="photo-avatar-placeholder">📷</span>
+                  )}
+                </div>
+                <div className="photo-upload-meta">
+                  <div className="photo-upload-title">
+                    Team Lead Photograph <span className="input-req">*</span>
+                  </div>
+                  <div className="photo-upload-sub">
+                    Upload a clear headshot photo (JPG, PNG, WEBP). Compulsory for summit badge & profile.
+                  </div>
+                  <div className="photo-btn-row">
+                    <button
+                      type="button"
+                      className="btn-photo-pick"
+                      onClick={() => leadFileInputRef.current?.click()}
+                    >
+                      {leadPhoto ? "Change Photo" : "Upload Photo"}
+                    </button>
+                    {leadPhoto && (
+                      <button
+                        type="button"
+                        className="btn-photo-remove"
+                        onClick={() => setLeadPhoto("")}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Form Inputs Grid */}
             <div className="form-grid">
               {category !== "volunteer" && (
                 <div className="input-group">
@@ -580,11 +1124,9 @@ export default function RegisterPage() {
                     type="text"
                     required
                     placeholder={
-                      category === "startup_founder"
+                      isStartupLeader
                         ? "e.g. AgriSmart Robotics Pvt Ltd"
-                        : category === "student_innovator"
-                        ? "e.g. GIET AI Innovation Lab"
-                        : "e.g. Venture Network / Institution"
+                        : "e.g. GIET AI Innovation Lab"
                     }
                     value={teamName}
                     onChange={(e) => setTeamName(e.target.value)}
@@ -594,7 +1136,7 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="fullName">
-                  <span>{category === "volunteer" ? "Volunteer Full Name" : "Team Lead / Full Name"} <span className="input-req">*</span></span>
+                  <span>{category === "volunteer" ? "Volunteer Full Name" : "Team Lead Full Name"} <span className="input-req">*</span></span>
                 </label>
                 <input
                   id="fullName"
@@ -663,12 +1205,13 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="altMobile">
-                  <span>Alternative Phone Number</span>
+                  <span>Alternate Phone Number {isStartupLeader && <span className="input-req">*</span>}</span>
                 </label>
                 <input
                   id="altMobile"
                   className="input-field"
                   type="tel"
+                  required={isStartupLeader}
                   placeholder="Secondary / Emergency contact"
                   value={altMobile}
                   onChange={(e) => setAltMobile(e.target.value)}
@@ -684,6 +1227,7 @@ export default function RegisterPage() {
                   className="input-field"
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
+                  required
                 >
                   {DOMAINS.map((d) => (
                     <option key={d} value={d}>
@@ -694,44 +1238,14 @@ export default function RegisterPage() {
               </div>
 
               <div className="input-group">
-                <label className="input-label" htmlFor="linkedinUrl">
-                  <span>LinkedIn Profile / URL</span>
-                </label>
-                <input
-                  id="linkedinUrl"
-                  className="input-field"
-                  type="url"
-                  placeholder="https://linkedin.com/in/username"
-                  value={linkedinUrl}
-                  onChange={(e) => setLinkedinUrl(e.target.value)}
-                />
-              </div>
-
-              {category !== "volunteer" && (
-                <div className="input-group form-full">
-                  <label className="input-label" htmlFor="teamMembers">
-                    <span>Attending Members Details (Names, roles & count)</span>
-                  </label>
-                  <textarea
-                    id="teamMembers"
-                    className="input-field"
-                    rows={2}
-                    placeholder="e.g. 3 members: Rahul (Tech Lead), Priya (Hardware Engineer), Akshat (CEO)"
-                    value={teamMembers}
-                    onChange={(e) => setTeamMembers(e.target.value)}
-                  />
-                </div>
-              )}
-
-              <div className="input-group">
                 <label className="input-label" htmlFor="city">
-                  <span>City <span className="input-req">*</span></span>
+                  <span>City {isStartupLeader && <span className="input-req">*</span>}</span>
                 </label>
                 <input
                   id="city"
                   className="input-field"
                   type="text"
-                  required
+                  required={isStartupLeader}
                   placeholder="e.g. Bhubaneswar / Gunupur"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
@@ -740,13 +1254,13 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="state">
-                  <span>State <span className="input-req">*</span></span>
+                  <span>State {isStartupLeader && <span className="input-req">*</span>}</span>
                 </label>
                 <input
                   id="state"
                   className="input-field"
                   type="text"
-                  required
+                  required={isStartupLeader}
                   placeholder="e.g. Odisha"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
@@ -755,20 +1269,155 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="country">
-                  <span>Country</span>
+                  <span>Country {isStartupLeader && <span className="input-req">*</span>}</span>
                 </label>
                 <input
                   id="country"
                   className="input-field"
                   type="text"
+                  required={isStartupLeader}
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                 />
               </div>
+
+              <div className="input-group form-full">
+                <label className="input-label" htmlFor="linkedinUrl">
+                  <span>LinkedIn Profile / URL {isStartupLeader && <span className="input-req">*</span>}</span>
+                </label>
+                <input
+                  id="linkedinUrl"
+                  className="input-field"
+                  type="url"
+                  required={isStartupLeader}
+                  placeholder="https://linkedin.com/in/username"
+                  value={linkedinUrl}
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                />
+              </div>
             </div>
 
+            {/* 3. Team Members Details (compulsory for startup leader, max 5) */}
+            {isStartupLeader && (
+              <>
+                <div className="section-label">
+                  <span>Step 3 · Team Members Details (Max 5 Members)</span>
+                  <span className="section-tag">{members.length} / 5 Added · All compulsory *</span>
+                </div>
+
+                <div className="members-container">
+                  {members.map((member, index) => (
+                    <div key={member.id} className="member-card">
+                      <div className="member-card-header">
+                        <span className="member-pill">Member #{index + 1}</span>
+                        {members.length > 1 && (
+                          <button
+                            type="button"
+                            className="btn-remove-member"
+                            onClick={() => handleRemoveMember(member.id)}
+                          >
+                            ✕ Remove
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="member-body-flex">
+                        {/* Member Photo Box */}
+                        <div className="member-photo-col">
+                          <label
+                            className="member-avatar-box"
+                            htmlFor={`member-photo-${member.id}`}
+                            title="Click to upload member photo"
+                          >
+                            {member.photoUrl ? (
+                              <img
+                                src={member.photoUrl}
+                                alt={member.name || `Member ${index + 1}`}
+                                className="member-avatar-img"
+                              />
+                            ) : (
+                              <span style={{ fontSize: 24, color: "#64748b" }}>📷</span>
+                            )}
+                          </label>
+                          <input
+                            id={`member-photo-${member.id}`}
+                            type="file"
+                            accept="image/*"
+                            style={{ display: "none" }}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleMemberPhotoChange(member.id, file);
+                            }}
+                          />
+                          <span style={{ fontSize: 11, color: member.photoUrl ? "#059669" : "#64748b", fontWeight: 600 }}>
+                            {member.photoUrl ? "Photo Added ✓" : "Upload Photo *"}
+                          </span>
+                        </div>
+
+                        {/* Member Inputs */}
+                        <div className="member-inputs-grid">
+                          <div className="input-group">
+                            <label className="input-label">
+                              <span>Full Name <span className="input-req">*</span></span>
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              className="input-field"
+                              placeholder="e.g. Priya Sharma"
+                              value={member.name}
+                              onChange={(e) => handleMemberFieldChange(member.id, "name", e.target.value)}
+                            />
+                          </div>
+
+                          <div className="input-group">
+                            <label className="input-label">
+                              <span>Phone Number <span className="input-req">*</span></span>
+                            </label>
+                            <input
+                              type="tel"
+                              required
+                              className="input-field"
+                              placeholder="+91 98765 00000"
+                              value={member.phone}
+                              onChange={(e) => handleMemberFieldChange(member.id, "phone", e.target.value)}
+                            />
+                          </div>
+
+                          <div className="input-group">
+                            <label className="input-label">
+                              <span>Email Address <span className="input-req">*</span></span>
+                            </label>
+                            <input
+                              type="email"
+                              required
+                              className="input-field"
+                              placeholder="priya@company.com"
+                              value={member.email}
+                              onChange={(e) => handleMemberFieldChange(member.id, "email", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {members.length < 5 && (
+                    <button
+                      type="button"
+                      className="btn-add-member"
+                      onClick={handleAddMember}
+                    >
+                      <span>+ Add Another Team Member</span>
+                      <span>({5 - members.length} spots remaining)</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
             <button type="submit" className="submit-btn" disabled={busy}>
-              {busy ? "Registering & Creating Account…" : `Register as ${activeCategory.badge} →`}
+              {busy ? "Registering & Saving Details…" : `Complete Registration as ${activeCategory.title} →`}
             </button>
           </form>
 

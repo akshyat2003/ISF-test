@@ -347,7 +347,7 @@ async function handler(request: Request) {
       const password = typeof body.password === "string" ? body.password.trim() : "";
       const category = String(body.category || body.role || "startup_founder");
       const teamName = String(body.teamName || body.startupName || "").trim();
-      const teamMembers = String(body.teamMembers || "").trim();
+      const photoUrl = typeof body.photoUrl === "string" ? body.photoUrl.trim() : null;
       const mobile = String(body.mobile || body.phoneNumber || "").trim();
       const altMobile = String(body.altMobile || "").trim();
       const domain = String(body.domain || "").trim();
@@ -356,16 +356,87 @@ async function handler(request: Request) {
       const country = String(body.country || "India").trim();
       const linkedinUrl = String(body.linkedinUrl || "").trim();
 
+      // Parse structured members
+      const rawMembers: Array<any> = Array.isArray(body.members) ? body.members : [];
+      const members: Array<{ name: string; photoUrl?: string; phone: string; email: string }> = rawMembers.slice(0, 5).map((m: any) => ({
+        name: String(m?.name || "").trim(),
+        photoUrl: typeof m?.photoUrl === "string" ? m.photoUrl.trim() : undefined,
+        phone: String(m?.phone || "").trim(),
+        email: String(m?.email || "").toLowerCase().trim(),
+      }));
+
+      // Validation
       if (!email || !email.includes("@")) {
         return Response.json({ message: "A valid email address is required" }, { status: 400 });
       }
       if (!fullName) {
-        return Response.json({ message: "Full name is required" }, { status: 400 });
+        return Response.json({ message: "Team lead full name is required" }, { status: 400 });
+      }
+
+      const isStartupLeader = category === "startup_founder" || category === "startup_team_leader" || category === "startup_leader";
+      if (isStartupLeader) {
+        if (!teamName) {
+          return Response.json({ message: "Startup / Team name is required" }, { status: 400 });
+        }
+        if (!photoUrl) {
+          return Response.json({ message: "Team lead photo is required" }, { status: 400 });
+        }
+        if (!mobile) {
+          return Response.json({ message: "Primary phone number is required" }, { status: 400 });
+        }
+        if (!altMobile) {
+          return Response.json({ message: "Alternate phone number is required" }, { status: 400 });
+        }
+        if (!domain) {
+          return Response.json({ message: "Domain / Sector is required" }, { status: 400 });
+        }
+        if (!city) {
+          return Response.json({ message: "City is required" }, { status: 400 });
+        }
+        if (!state) {
+          return Response.json({ message: "State is required" }, { status: 400 });
+        }
+        if (!country) {
+          return Response.json({ message: "Country is required" }, { status: 400 });
+        }
+        if (!linkedinUrl) {
+          return Response.json({ message: "LinkedIn profile URL is required" }, { status: 400 });
+        }
+        if (members.length === 0) {
+          return Response.json({ message: "At least one team member detail is required (max 5 members)" }, { status: 400 });
+        }
+        for (let i = 0; i < members.length; i++) {
+          const m = members[i];
+          if (!m.name) return Response.json({ message: `Member #${i + 1} name is required` }, { status: 400 });
+          if (!m.photoUrl) return Response.json({ message: `Member #${i + 1} (${m.name}) photo is required` }, { status: 400 });
+          if (!m.phone) return Response.json({ message: `Member #${i + 1} (${m.name}) phone number is required` }, { status: 400 });
+          if (!m.email || !m.email.includes("@")) return Response.json({ message: `Member #${i + 1} (${m.name}) valid email is required` }, { status: 400 });
+        }
+      }
+
+      // Ensure DB table & columns exist
+      try {
+        await sql`
+          alter table user_accounts add column if not exists photo_url text;
+          alter table user_accounts add column if not exists team_members_json jsonb;
+          create table if not exists startup_team_members (
+            id uuid primary key default gen_random_uuid(),
+            startup_id uuid references startups(id) on delete cascade,
+            leader_user_id uuid references user_accounts(id) on delete cascade,
+            name text not null,
+            photo_url text,
+            phone text not null,
+            email text not null,
+            created_at timestamptz not null default now()
+          );
+        `;
+      } catch (err) {
+        console.warn("[DB SCHEMA ENSURE]", err);
       }
 
       // Map category to system role
       let role = "delegate";
-      if (category === "startup_founder" || category === "startup_team_leader" || category === "startup_leader") role = "startup_team_leader";
+      if (isStartupLeader) role = "startup_team_leader";
       else if (category === "student_innovator" || category === "startup_team_member") role = "startup_team_member";
       else if (category === "volunteer") role = "volunteer";
       else if (category === "mentor" || category === "jury_member") role = "jury_member";
@@ -375,15 +446,21 @@ async function handler(request: Request) {
       const passwordHash = password ? hashPassword(password) : null;
       const authSub = `dev|${email}`;
 
+      const teamMembersSummary = members.length > 0
+        ? members.map((m, i) => `${i + 1}. ${m.name} (${m.email}, ${m.phone})`).join("; ")
+        : String(body.teamMembers || "").trim();
+
       // Insert or update user_accounts
       const [user] = await sql`
         insert into user_accounts (
           auth_subject, email, full_name, mobile_e164, password_hash,
-          status, category, team_name, team_members, domain, alt_mobile, city, state, country, linkedin_url
+          status, category, team_name, team_members, team_members_json, photo_url,
+          domain, alt_mobile, city, state, country, linkedin_url
         )
         values (
           ${authSub}, ${email}, ${fullName}, ${mobile || null}, ${passwordHash},
-          'active', ${category}, ${teamName || null}, ${teamMembers || null}, ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
+          'active', ${category}, ${teamName || null}, ${teamMembersSummary || null}, ${JSON.stringify(members)}::jsonb, ${photoUrl},
+          ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
         )
         on conflict (lower(email)) where email is not null do update
         set auth_subject = ${authSub},
@@ -393,7 +470,9 @@ async function handler(request: Request) {
             status = 'active',
             category = ${category},
             team_name = coalesce(${teamName || null}, user_accounts.team_name),
-            team_members = coalesce(${teamMembers || null}, user_accounts.team_members),
+            team_members = coalesce(${teamMembersSummary || null}, user_accounts.team_members),
+            team_members_json = coalesce(${JSON.stringify(members)}::jsonb, user_accounts.team_members_json),
+            photo_url = coalesce(${photoUrl}, user_accounts.photo_url),
             domain = coalesce(${domain || null}, user_accounts.domain),
             alt_mobile = coalesce(${altMobile || null}, user_accounts.alt_mobile),
             city = coalesce(${city || null}, user_accounts.city),
@@ -421,19 +500,48 @@ async function handler(request: Request) {
       `;
 
       // If teamName provided, link to startups
+      let startupId: string | null = null;
       if (teamName) {
-        const [startup] = await sql`
-          insert into startups (name, origin, created_by, city, state)
-          values (${teamName}, 'applicant', ${userId}, ${city || null}, ${state || null})
-          on conflict do nothing
-          returning id
+        const [existingStartup] = await sql`
+          select id from startups where name_normalized = lower(regexp_replace(trim(${teamName}), '\\s+', ' ', 'g')) limit 1
         `;
-        if (startup) {
+        if (existingStartup) {
+          startupId = existingStartup.id;
+        } else {
+          const [newStartup] = await sql`
+            insert into startups (name, origin, created_by, city, state)
+            values (${teamName}, 'applicant', ${userId}, ${city || null}, ${state || null})
+            returning id
+          `;
+          startupId = newStartup?.id || null;
+        }
+
+        if (startupId) {
           await sql`
             insert into startup_memberships (startup_id, user_id, position)
-            values (${startup.id}, ${userId}, ${role === 'startup_team_leader' ? 'leader' : 'member'})
-            on conflict do nothing
+            values (${startupId}, ${userId}, ${role === 'startup_team_leader' ? 'leader' : 'member'})
+            on conflict (startup_id, user_id) do update set position = ${role === 'startup_team_leader' ? 'leader' : 'member'}
           `;
+        }
+      }
+
+      // Store individual team members in startup_team_members table
+      if (members.length > 0) {
+        await sql`delete from startup_team_members where leader_user_id = ${userId}`;
+        for (const m of members) {
+          if (m && m.name && m.email) {
+            await sql`
+              insert into startup_team_members (startup_id, leader_user_id, name, photo_url, phone, email)
+              values (
+                ${startupId},
+                ${userId},
+                ${m.name},
+                ${m.photoUrl || null},
+                ${m.phone},
+                ${m.email}
+              )
+            `;
+          }
         }
       }
 
@@ -463,39 +571,87 @@ async function handler(request: Request) {
           roles,
           category,
           teamName,
+          photoUrl,
+          membersCount: members.length,
         },
         message: "Registration successful! Your account is active.",
       });
 
-      // Dispatch confirmation email to registered user
+      // Dispatch confirmation email to team leader
       const transporter = getTransporter();
       if (transporter && email) {
         try {
+          const membersListHtml = members.length > 0
+            ? `
+              <div style="margin-top:20px;">
+                <h4 style="margin:0 0 10px;color:#1e293b;font-size:14px;font-weight:700;">Registered Team Members (${members.length} / 5):</h4>
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:#334155;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                  <thead>
+                    <tr style="background:#f1f5f9;text-align:left;">
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">#</th>
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Name</th>
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Email</th>
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Phone</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${members.map((m, i) => `
+                      <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:8px 12px;color:#64748b;">${i + 1}</td>
+                        <td style="padding:8px 12px;"><strong>${m.name}</strong></td>
+                        <td style="padding:8px 12px;color:#2563eb;">${m.email}</td>
+                        <td style="padding:8px 12px;">${m.phone}</td>
+                      </tr>
+                    `).join("")}
+                  </tbody>
+                </table>
+              </div>
+            `
+            : "";
+
           await transporter.sendMail({
             from: process.env.NOTIFY_EMAIL_FROM || '"Udbhav 2026" <akshyatraj@yahoo.com>',
             to: email,
-            subject: "Welcome to Startup Jathara 2026 - Registration Confirmed",
+            subject: `Welcome to Startup Jathara 2026 - ${teamName || fullName} Registration Confirmed`,
             html: `
-              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-                <h2 style="color:#1d4ed8;margin:0 0 10px;font-size:22px;font-weight:800;">Startup Jathara 2026</h2>
-                <h3 style="color:#0f172a;font-size:18px;margin:0 0 12px;">Registration Confirmed! 🎉</h3>
-                <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 16px;">
-                  Hello <strong>${fullName}</strong>,<br/><br/>
-                  Your registration for <strong>Startup Jathara 2026</strong> at GIET University has been confirmed. You can now log in to the portal using your credentials:
-                </p>
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 20px;font-size:14px;color:#334155;">
-                  <div style="margin-bottom:8px;"><strong>Registered Email:</strong> ${email}</div>
-                  <div style="margin-bottom:8px;"><strong>Category:</strong> ${category}</div>
-                  ${teamName ? `<div style="margin-bottom:8px;"><strong>Organization / Team:</strong> ${teamName}</div>` : ""}
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,0.06);">
+                <div style="margin-bottom:16px;">
+                  <span style="display:inline-block;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:0.04em;">Dandakaranya Innovation Summit</span>
+                  <h2 style="color:#1d4ed8;margin:8px 0 4px;font-size:22px;font-weight:800;">Startup Jathara 2026</h2>
+                  <p style="color:#64748b;font-size:13px;margin:0;">GIET University, Gunupur, Odisha · 18–20 December 2026</p>
                 </div>
-                <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 20px;">
-                  Access your dashboard, submit pitching materials, or track schedule updates here:
+
+                <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:16px;margin:16px 0 20px;">
+                  <h3 style="color:#065f46;font-size:16px;margin:0 0 6px;">🎉 Startup Registration Confirmed!</h3>
+                  <p style="color:#047857;font-size:13px;margin:0;line-height:1.4;">
+                    Dear <strong>${fullName}</strong>, your startup credentials and team members have been saved to the summit database.
+                  </p>
+                </div>
+
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin:0 0 16px;font-size:13px;color:#334155;line-height:1.6;">
+                  <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">
+                    Team Leader & Startup Profile
+                  </div>
+                  <div style="margin-bottom:6px;"><strong>Startup / Team:</strong> ${teamName || "N/A"}</div>
+                  <div style="margin-bottom:6px;"><strong>Team Lead Name:</strong> ${fullName}</div>
+                  <div style="margin-bottom:6px;"><strong>Registered Email:</strong> ${email}</div>
+                  <div style="margin-bottom:6px;"><strong>Primary Phone:</strong> ${mobile || "N/A"}</div>
+                  ${altMobile ? `<div style="margin-bottom:6px;"><strong>Alternate Phone:</strong> ${altMobile}</div>` : ""}
+                  <div style="margin-bottom:6px;"><strong>Domain / Sector:</strong> ${domain || "N/A"}</div>
+                  <div style="margin-bottom:6px;"><strong>Location:</strong> ${[city, state, country].filter(Boolean).join(", ")}</div>
+                  ${linkedinUrl ? `<div style="margin-bottom:6px;"><strong>LinkedIn:</strong> <a href="${linkedinUrl}" target="_blank" style="color:#2563eb;text-decoration:none;">${linkedinUrl}</a></div>` : ""}
+                </div>
+
+                ${membersListHtml}
+
+                <p style="color:#475569;font-size:14px;line-height:1.5;margin:24px 0 16px;">
+                  You can now log in to the portal using your registered email and password to track your startup review, schedule pitches, and connect with mentors:
                 </p>
                 <div style="text-align:center;margin:0 0 24px;">
-                  <a href="https://isf-test.vercel.app/signin" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;">Log In to Portal →</a>
+                  <a href="https://isf-test.vercel.app/signin" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;box-shadow:0 4px 10px rgba(37,99,235,0.2);">Log In to Portal →</a>
                 </div>
-                <p style="color:#94a3b8;font-size:11px;margin:0;border-top:1px solid #f1f5f9;padding-top:14px;">
-                  Startup Jathara 2026 · GIET University · If you did not create this account, please contact support.
+                <p style="color:#94a3b8;font-size:11px;margin:0;border-top:1px solid #f1f5f9;padding-top:14px;text-align:center;">
+                  Startup Jathara 2026 · Organised by GIET University & International Startup Foundation (ISF).
                 </p>
               </div>
             `,
