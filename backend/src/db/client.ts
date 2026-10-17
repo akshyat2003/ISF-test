@@ -22,6 +22,11 @@ export function isUniqueViolation(err: unknown, constraint?: string): boolean {
   return constraint ? err.constraint_name === constraint : true;
 }
 
+export function isCheckViolation(err: unknown, constraint?: string): boolean {
+  if (!(err instanceof postgres.PostgresError) || err.code !== "23514") return false;
+  return constraint ? err.constraint_name === constraint : true;
+}
+
 /** Errors raised by our own triggers (errcode P0001) carry the PRD rule id in the hint, e.g. "DC-02". */
 export function ruleViolation(err: unknown): string | null {
   return err instanceof postgres.PostgresError && err.code === "P0001" ? (err.hint ?? "rule") : null;

@@ -1,7 +1,7 @@
 import type { FastifyError, FastifyInstance } from "fastify";
 import { ZodError, type z } from "zod";
 import type { Problem } from "@sj/contracts";
-import { isUniqueViolation, ruleViolation } from "../db/client.js";
+import { isCheckViolation, isUniqueViolation, ruleViolation } from "../db/client.js";
 
 /** An expected failure that maps to an RFC 9457 problem response with a stable `code`. */
 export class AppError extends Error {
@@ -50,6 +50,14 @@ export function registerErrorHandler(app: FastifyInstance) {
       body = problem({ status: s, code: (err as FastifyError).code?.toLowerCase() ?? "bad_request", title: err.message });
     } else if (isUniqueViolation(err)) {
       body = problem({ status: 409, code: "conflict", title: "This record already exists" });
+    } else if (isCheckViolation(err)) {
+      let detail = (err as Error).message;
+      if ((err as any).constraint_name === "user_accounts_mobile_e164_check" || detail.includes("user_accounts_mobile_e164_check")) {
+        detail = "Invalid primary phone number format. Please provide a valid 10-digit mobile number or international phone (e.g. +91 98765 43210).";
+      } else if ((err as any).constraint_name === "user_accounts_full_name_check" || detail.includes("user_accounts_full_name_check")) {
+        detail = "Full name must be between 1 and 200 characters.";
+      }
+      body = problem({ status: 400, code: "bad_request", title: "Invalid input", detail });
     } else if (ruleViolation(err)) {
       body = problem({ status: 409, code: "rule_violation", title: "Blocked by a platform rule", detail: ruleViolation(err)! });
     } else {

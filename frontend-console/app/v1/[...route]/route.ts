@@ -1437,6 +1437,21 @@ async function handler(request: Request) {
 
       const resBody = await proxyRes.arrayBuffer();
       const resHeaders = new Headers(proxyRes.headers);
+
+      if (proxyRes.status >= 400) {
+        try {
+          const text = new TextDecoder().decode(resBody);
+          if (text.includes("user_accounts_mobile_e164_check")) {
+            return Response.json(
+              {
+                message: "Invalid primary phone number format. Please provide a valid 10-digit mobile number or international phone (e.g. +91 98765 43210).",
+              },
+              { status: 400 }
+            );
+          }
+        } catch {}
+      }
+
       return new Response(resBody, {
         status: proxyRes.status,
         headers: resHeaders,

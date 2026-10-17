@@ -162,12 +162,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const category = String(body.category || body.role || "startup_founder");
     const teamName = String(body.teamName || body.startupName || "").trim();
     const teamMembers = String(body.teamMembers || "").trim();
-    const mobile = String(body.mobile || body.phoneNumber || "").trim();
-    const altMobile = String(body.altMobile || "").trim();
+    const rawMobile = String(body.mobile || body.phoneNumber || "").trim();
+    const mobile = normaliseMobile(rawMobile) || (rawMobile && /^\+[1-9]\d{7,14}$/.test(rawMobile) ? rawMobile : null);
+    const rawAltMobile = String(body.altMobile || "").trim();
+    const altMobile = normaliseMobile(rawAltMobile) || rawAltMobile;
     const domain = String(body.domain || "").trim();
     const city = String(body.city || "").trim();
     const state = String(body.state || "").trim();
     const country = String(body.country || "India").trim();
+    const redgNo = String(body.redgNo || "").trim();
+    const rollNo = String(body.rollNo || "").trim();
+    const organisationName = String(body.organisationName || body.teamName || "").trim();
+    const photoUrl = typeof body.photoUrl === "string" ? body.photoUrl.trim() : null;
     const rawLinkedin = String(body.linkedinUrl || "").trim();
     const linkedinUrl = rawLinkedin
       ? /^https?:\/\//i.test(rawLinkedin)
@@ -186,6 +192,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
     if (!email || !email.includes("@")) throw new AppError(400, "bad_request", "A valid email address is required");
     if (!fullName) throw new AppError(400, "bad_request", "Full name is required");
+    if (rawMobile && !mobile) {
+      throw new AppError(400, "bad_request", "Invalid primary phone number format. Please provide a valid 10-digit mobile number or +91 98765 43210.");
+    }
+    if (category === "volunteer") {
+      if (!mobile) throw new AppError(400, "bad_request", "A valid primary phone number is required (e.g. 10-digit mobile or +91 98765 43210)");
+      if (!altMobile) throw new AppError(400, "bad_request", "Alternate phone number is required");
+      if (!redgNo) throw new AppError(400, "bad_request", "Registration number (redg no) is required");
+      if (!rollNo) throw new AppError(400, "bad_request", "Roll number / student ID is required");
+    }
 
     let role = "delegate";
     if (category === "startup_founder" || category === "startup_team_leader") role = "startup_team_leader";
@@ -197,17 +212,19 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const [u] = await sql<{ id: string }[]>`
       insert into user_accounts (
         auth_subject, email, full_name, mobile_e164, status,
-        category, team_name, team_members, domain, alt_mobile, city, state, country, linkedin_url
+        category, team_name, team_members, domain, alt_mobile, city, state, country, linkedin_url,
+        redg_no, roll_no, organisation_name, photo_url
       )
       values (
         ${`dev|${email}`}, ${email}, ${fullName}, ${mobile || null}, 'active',
-        ${category}, ${teamName || null}, ${teamMembers || null}, ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
+        ${category}, ${teamName || organisationName || null}, ${teamMembers || null}, ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null},
+        ${redgNo || null}, ${rollNo || null}, ${organisationName || teamName || null}, ${photoUrl || null}
       )
       on conflict (lower(email)) where email is not null do update
       set full_name = ${fullName},
           mobile_e164 = coalesce(${mobile || null}, user_accounts.mobile_e164),
           category = ${category},
-          team_name = coalesce(${teamName || null}, user_accounts.team_name),
+          team_name = coalesce(${teamName || organisationName || null}, user_accounts.team_name),
           team_members = coalesce(${teamMembers || null}, user_accounts.team_members),
           domain = coalesce(${domain || null}, user_accounts.domain),
           alt_mobile = coalesce(${altMobile || null}, user_accounts.alt_mobile),
@@ -215,6 +232,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           state = coalesce(${state || null}, user_accounts.state),
           country = coalesce(${country || 'India'}, user_accounts.country),
           linkedin_url = coalesce(${linkedinUrl || null}, user_accounts.linkedin_url),
+          redg_no = coalesce(${redgNo || null}, user_accounts.redg_no),
+          roll_no = coalesce(${rollNo || null}, user_accounts.roll_no),
+          organisation_name = coalesce(${organisationName || teamName || null}, user_accounts.organisation_name),
+          photo_url = coalesce(${photoUrl || null}, user_accounts.photo_url),
           updated_at = now()
       returning id
     `;

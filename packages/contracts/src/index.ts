@@ -31,11 +31,18 @@ export type Problem = {
 
 /** Normalise an Indian 10-digit mobile or an international number to E.164; returns null if invalid. */
 export function normaliseMobile(input: string): string | null {
-  const s = input.replace(/[\s\-().]/g, "");
+  if (!input) return null;
+  const s = String(input).replace(/[\s\-().]/g, "");
+  if (!s) return null;
+  if (/^\+[1-9]\d{7,14}$/.test(s)) return s;
   if (/^[6-9]\d{9}$/.test(s)) return `+91${s}`;
   if (/^0[6-9]\d{9}$/.test(s)) return `+91${s.slice(1)}`;
   if (/^91[6-9]\d{9}$/.test(s)) return `+${s}`;
-  if (/^\+[1-9]\d{7,14}$/.test(s)) return s;
+  if (/^\d{10}$/.test(s)) return `+91${s}`;
+  if (/^0\d{10}$/.test(s)) return `+91${s.slice(1)}`;
+  if (/^91\d{10}$/.test(s)) return `+${s}`;
+  const withPlus = s.startsWith("+") ? s : `+${s}`;
+  if (/^\+[1-9]\d{7,14}$/.test(withPlus)) return withPlus;
   return null;
 }
 
