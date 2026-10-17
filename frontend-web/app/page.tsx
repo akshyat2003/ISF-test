@@ -17,27 +17,50 @@ async function loadEditions(): Promise<PublicEdition[] | null> {
 export default async function Home() {
   const editions = await loadEditions();
   const e26 = editions?.find((e) => e.year === 2026);
+  const eventDates = e26?.eventStartsOn && e26.eventEndsOn ? formatDateRange(e26.eventStartsOn, e26.eventEndsOn) : "18–20 December 2026";
+
   return (
-    <>
-      <section className="hero">
-        <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 16, flexWrap: "wrap" }}>
-          <Image src="/logos/udbhav.png" alt="Udbhav" width={84} height={84} style={{ borderRadius: 14, objectFit: "contain" }} />
-          <div>
-            <p className="eyebrow" style={{ margin: 0 }}>GIET University · Gunupur, Odisha</p>
-            <h1 style={{ margin: "4px 0 0" }}>Udbhav · Startup Jathara</h1>
-          </div>
+    <section className="hero">
+      <div className="hero-emblem">
+        <Image src="/logos/udbhav.png" alt="Udbhav" width={80} height={80} style={{ borderRadius: 12, objectFit: "contain" }} priority />
+      </div>
+
+      <span className="eyebrow-badge">GIET University · Gunupur, Odisha</span>
+
+      <h1>Udbhav · Startup Jathara</h1>
+
+      <div className="pills-row">
+        <span className="pill-item">📅 {eventDates} (Pre-event 17 Dec)</span>
+        <span className="pill-item">📍 GIET University, Gunupur</span>
+        <span className="pill-item">🤝 ISF & Incubatex Innovation</span>
+      </div>
+
+      <p className="lede">
+        The premier Dandakaranya Innovation Summit bringing together startup founders, innovators, investors, corporate leaders, mentors, and student changemakers for pitch stages, roundtables, and ecosystem growth.
+      </p>
+
+      <div className="actions">
+        <Link href="/register" className="btn btn-primary btn-large">
+          Summit Registration (All Tracks) →
+        </Link>
+        <Link href="/signin" className="btn btn-large">
+          Sign In to Dashboard
+        </Link>
+      </div>
+
+      <div className="tracks-ribbon">
+        <p className="tracks-ribbon-title">Open Registration Tracks</p>
+        <div className="tracks-badges">
+          <span className="track-chip">🚀 Startup Founders</span>
+          <span className="track-chip">💡 Student Innovators</span>
+          <span className="track-chip">💼 Investors & VCs</span>
+          <span className="track-chip">🏢 Corporate Delegates</span>
+          <span className="track-chip">🎓 Mentors & Sector Experts</span>
+          <span className="track-chip">🤝 Volunteers</span>
+          <span className="track-chip">🏛️ Management Teams</span>
         </div>
-        <p className="lede">
-          {e26?.eventStartsOn && e26.eventEndsOn ? formatDateRange(e26.eventStartsOn, e26.eventEndsOn) : "18–20 December 2026"}
-          {" "}· pre-event day 17 December 2026. Startup pitches, roundtables, awards, networking, forest trekking
-          and ecosystem discussions, organised by GIET University in association with the International Startup Foundation and Incubatex Innovation.
-        </p>
-        <div className="actions">
-          <Link href="/register" className="btn btn-primary">Summit Registration (All Tracks) →</Link>
-          <Link href="/signin" className="btn">Sign In to Dashboard</Link>
-        </div>
-      </section>
-    </>
+      </div>
+    </section>
   );
 }
 
