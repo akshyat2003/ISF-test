@@ -13,7 +13,7 @@
     "export:web": "expo export --platform web --output-dir dist-web",
     "build:android:apk": "eas build -p android --profile production-apk",
     "build:android:preview": "eas build -p android --profile preview",
-    "update:global": "npx eas-cli update --branch production",
+    "update:global": "npx eas-cli update --branch production --auto",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run"
   },
