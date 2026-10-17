@@ -169,6 +169,33 @@ export function supabaseIdentityResolver(opts: { supabaseUrl: string; serviceRol
   };
 }
 
+export function compositeVerifier(supabase: TokenVerifier, dev: TokenVerifier): TokenVerifier {
+  return {
+    async verify(token: string) {
+      try {
+        return await dev.verify(token);
+      } catch {
+        return await supabase.verify(token);
+      }
+    },
+  };
+}
+
+export function compositeIdentityResolver(supabase: IdentityResolver, dev: IdentityResolver): IdentityResolver {
+  return {
+    async resolve(c: Claims) {
+      if (c.sub.startsWith("dev|") || c.devAssertions?.emailVerified || c.devAssertions?.phoneVerified) {
+        return dev.resolve(c);
+      }
+      try {
+        return await supabase.resolve(c);
+      } catch {
+        return dev.resolve(c);
+      }
+    },
+  };
+}
+
 const identityUnavailable = () =>
   new AppError(503, "identity_unavailable", "Identity check unavailable", "We could not confirm your sign-in details. Please try again shortly.");
 

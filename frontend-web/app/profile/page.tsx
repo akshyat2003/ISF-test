@@ -180,9 +180,9 @@ export default function ProfilePage() {
           newPassword,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.message || "Failed to update password.");
+        throw new Error(data.message || data.detail || data.title || "Failed to update password.");
       }
       setPasswordSuccess("✓ Your password has been updated successfully.");
       setCurrentPassword("");

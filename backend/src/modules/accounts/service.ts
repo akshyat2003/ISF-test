@@ -1,4 +1,4 @@
-// Accounts (Phase 3): "who am I", secure activation and account administration (FR-IAM-05, -06, -08…10).
+import nodemailer from "nodemailer";
 import { createHash, randomBytes } from "node:crypto";
 import { normaliseMobile, type AccountStatus, type ActivationIssued, type AdminUser, type AdminUserList, type MeResponse, type Role, type SignupRole } from "@sj/contracts";
 import type { Db, Sql } from "../../db/client.js";
@@ -7,6 +7,20 @@ import { channelFor, enqueue, TEMPLATES } from "../notifications/outbox.js";
 import { AppError, notFound } from "../../platform/errors.js";
 import { permissionsOf, type Principal } from "../../platform/principal.js";
 import { hashPassword } from "./otp.js";
+
+function getTransporter() {
+  const host = process.env.SMTP_HOST || "smtp.mail.yahoo.com";
+  const user = process.env.SMTP_USER || "akshyatraj@yahoo.com";
+  const pass = process.env.SMTP_PASS || "fmsfaftyihknretj";
+  const port = Number(process.env.SMTP_PORT) || 465;
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+}
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -331,6 +345,43 @@ export async function createCredential(
   });
 
   const user = await getUser(sql, result.userId);
+
+  if (normEmail) {
+    try {
+      const transporter = getTransporter();
+      await transporter.sendMail({
+        from: process.env.NOTIFY_EMAIL_FROM || '"Startup Jathara" <akshyatraj@yahoo.com>',
+        to: normEmail,
+        subject: `Your Startup Jathara Credentials - ${data.role.replace(/_/g, " ").toUpperCase()}`,
+        html: `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+            <h2 style="color:#1d4ed8;margin:0 0 10px;font-size:22px;font-weight:800;">Startup Jathara Console</h2>
+            <h3 style="color:#0f172a;font-size:18px;margin:0 0 12px;">Staff Account & Credentials Created</h3>
+            <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 16px;">
+              Hello <strong>${data.fullName}</strong>,<br/><br/>
+              An administrator has generated your staff credentials for the <strong>Startup Jathara Admin & Operations Platform</strong>.
+            </p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 20px;font-size:14px;color:#334155;">
+              <div style="margin-bottom:8px;"><strong>Full Name:</strong> ${data.fullName}</div>
+              <div style="margin-bottom:8px;"><strong>Work Email:</strong> ${normEmail}</div>
+              <div style="margin-bottom:8px;"><strong>Assigned Role:</strong> ${data.role.replace(/_/g, " ")}</div>
+              <div style="margin-bottom:8px;"><strong>Login Password:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:15px;font-weight:700;color:#b45309;">${finalPassword}</code></div>
+            </div>
+            <div style="text-align:center;margin:0 0 24px;">
+              <a href="https://isf-test-sb9i.vercel.app/login" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;">Log In to Console →</a>
+            </div>
+            <p style="color:#64748b;font-size:12px;line-height:1.4;margin:0 0 8px;">
+              You can update your password at any time via the <strong>Profile</strong> section after signing in.
+            </p>
+          </div>
+        `,
+      });
+      console.log(`[CREDENTIALS EMAIL DISPATCHED] to ${normEmail}`);
+    } catch (err) {
+      console.error("[CREDENTIALS EMAIL ERROR]", err);
+    }
+  }
+
   return {
     user,
     activationToken: result.token,

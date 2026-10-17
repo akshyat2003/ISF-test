@@ -28,6 +28,24 @@ async function extractPayload(rawToken: string): Promise<any | null> {
   }
 }
 
+async function resolveUserEmail(payload: any, sql: postgres.Sql): Promise<string | null> {
+  if (!payload) return null;
+  let email = String(payload.email || "").toLowerCase().trim();
+  if (email && email.includes("@")) return email;
+  if (payload.sub) {
+    const subStr = String(payload.sub).trim();
+    if (subStr.startsWith("dev|")) {
+      const parsed = subStr.replace(/^dev\|/, "").toLowerCase().trim();
+      if (parsed.includes("@")) return parsed;
+    }
+    try {
+      const [u] = await sql`select email from user_accounts where auth_subject = ${subStr} or id::text = ${subStr} limit 1`;
+      if (u?.email) return String(u.email).toLowerCase().trim();
+    } catch {}
+  }
+  return null;
+}
+
 function getAuthToken(request: Request): string {
   const authHeader = request.headers.get("authorization") || "";
   const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -499,11 +517,11 @@ async function handler(request: Request) {
       }
 
       const payload = await extractPayload(rawToken);
-      if (!payload || !payload.email) {
+      const email = await resolveUserEmail(payload, sql);
+      if (!payload || !email) {
         return Response.json({ message: "Invalid session token" }, { status: 401 });
       }
 
-      const email = String(payload.email || "").toLowerCase().trim();
       const authSub = payload.sub || `dev|${email}`;
 
       let user: any = null;
@@ -566,8 +584,8 @@ async function handler(request: Request) {
       const rawToken = getAuthToken(request);
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
       const payload = await extractPayload(rawToken);
-      if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
-      const email = String(payload.email || "").toLowerCase().trim();
+      const email = await resolveUserEmail(payload, sql);
+      if (!payload || !email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const rows = await sql`
         select id, email, full_name as "fullName", mobile_e164 as mobile, status, category,
                team_name as "teamName", team_members as "teamMembers", domain, alt_mobile as "altMobile",
@@ -586,8 +604,8 @@ async function handler(request: Request) {
       const rawToken = getAuthToken(request);
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
       const payload = await extractPayload(rawToken);
-      if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
-      const email = String(payload.email || "").toLowerCase().trim();
+      const email = await resolveUserEmail(payload, sql);
+      if (!payload || !email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const body = await request.json();
       const fullName = String(body.fullName || "").trim();
       const mobile = String(body.mobile || "").trim();
@@ -626,8 +644,8 @@ async function handler(request: Request) {
       const rawToken = getAuthToken(request);
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
       const payload = await extractPayload(rawToken);
-      if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
-      const email = String(payload.email || "").toLowerCase().trim();
+      const email = await resolveUserEmail(payload, sql);
+      if (!payload || !email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const body = await request.json();
       const currentPassword = String(body.currentPassword || "").trim();
       const newPassword = String(body.newPassword || "").trim();

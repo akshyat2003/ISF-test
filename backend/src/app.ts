@@ -19,7 +19,7 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { Sql } from "./db/client.js";
 import { createCredential, getUser, grantRole, issueActivation, listUsers, me, publicSignUp, redeemActivation, revokeRole, setStatus } from "./modules/accounts/service.js";
-import { sendOtpEmail, verifyOtpAndLogin, updatePasswordWithOtp } from "./modules/accounts/otp.js";
+import { sendOtpEmail, verifyOtpAndLogin, updatePasswordWithOtp, hashPassword, verifyPassword } from "./modules/accounts/otp.js";
 import { listEditions, toPublic } from "./modules/editions/service.js";
 import { commitBatch, discardBatch, getBatch, listBatches, previewImport, templateCsv } from "./modules/imports/service.js";
 import { markRead, myNotifications } from "./modules/notifications/service.js";
@@ -279,6 +279,29 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     await redeemActivation(sql, principalOf(req), token, now());
     // Re-resolve so the response reflects the now-active account with its roles.
     return me(await resolvePrincipal(sql, principalOf(req).claims, { requireStaffMfa: config.requireStaffMfa, identity }));
+  });
+
+  app.post("/v1/me/password", { preHandler: [authPending] }, async (req, reply) => {
+    const p = principalOf(req);
+    const body = (req.body || {}) as { currentPassword?: string; newPassword?: string };
+    const newPassword = String(body.newPassword || "").trim();
+    const currentPassword = String(body.currentPassword || "").trim();
+    if (newPassword.length < 6) {
+      throw new AppError(400, "weak_password", "New password must be at least 6 characters long.");
+    }
+    const [user] = await sql<{ id: string; password_hash: string | null }[]>`
+      select id, password_hash from user_accounts where id = ${p.account!.id}
+    `;
+    if (!user) throw new AppError(404, "not_found", "User not found");
+    if (user.password_hash && currentPassword) {
+      const valid = verifyPassword(currentPassword, user.password_hash);
+      if (!valid) {
+        throw new AppError(400, "invalid_password", "Current password does not match our records.");
+      }
+    }
+    const newHash = hashPassword(newPassword);
+    await sql`update user_accounts set password_hash = ${newHash}, updated_at = now() where id = ${user.id}`;
+    return { ok: true, message: "Your password has been updated successfully." };
   });
 
   // ---------------------------------------------------------------- admin: accounts and roles (FR-IAM-05/06/09)

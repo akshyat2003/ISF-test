@@ -28,6 +28,24 @@ async function extractPayload(rawToken: string): Promise<any | null> {
   }
 }
 
+async function resolveUserEmail(payload: any, sql: postgres.Sql): Promise<string | null> {
+  if (!payload) return null;
+  let email = String(payload.email || "").toLowerCase().trim();
+  if (email && email.includes("@")) return email;
+  if (payload.sub) {
+    const subStr = String(payload.sub).trim();
+    if (subStr.startsWith("dev|")) {
+      const parsed = subStr.replace(/^dev\|/, "").toLowerCase().trim();
+      if (parsed.includes("@")) return parsed;
+    }
+    try {
+      const [u] = await sql`select email from user_accounts where auth_subject = ${subStr} or id::text = ${subStr} limit 1`;
+      if (u?.email) return String(u.email).toLowerCase().trim();
+    } catch {}
+  }
+  return null;
+}
+
 function getAuthToken(request: Request): string {
   const authHeader = request.headers.get("authorization") || "";
   const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -501,11 +519,11 @@ async function handler(request: Request) {
       }
 
       const payload = await extractPayload(rawToken);
-      if (!payload || !payload.email) {
+      const email = await resolveUserEmail(payload, sql);
+      if (!payload || !email) {
         return Response.json({ message: "Invalid session token" }, { status: 401 });
       }
 
-      const email = String(payload.email || "").toLowerCase().trim();
       const authSub = payload.sub || `dev|${email}`;
 
       let user: any = null;
@@ -568,8 +586,8 @@ async function handler(request: Request) {
       const rawToken = getAuthToken(request);
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
       const payload = await extractPayload(rawToken);
-      if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
-      const email = String(payload.email || "").toLowerCase().trim();
+      const email = await resolveUserEmail(payload, sql);
+      if (!payload || !email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const rows = await sql`
         select id, email, full_name as "fullName", mobile_e164 as mobile, status, category,
                team_name as "teamName", team_members as "teamMembers", domain, alt_mobile as "altMobile",
@@ -588,8 +606,8 @@ async function handler(request: Request) {
       const rawToken = getAuthToken(request);
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
       const payload = await extractPayload(rawToken);
-      if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
-      const email = String(payload.email || "").toLowerCase().trim();
+      const email = await resolveUserEmail(payload, sql);
+      if (!payload || !email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const body = await request.json();
       const fullName = String(body.fullName || "").trim();
       const mobile = String(body.mobile || "").trim();
@@ -628,8 +646,8 @@ async function handler(request: Request) {
       const rawToken = getAuthToken(request);
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
       const payload = await extractPayload(rawToken);
-      if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
-      const email = String(payload.email || "").toLowerCase().trim();
+      const email = await resolveUserEmail(payload, sql);
+      if (!payload || !email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const body = await request.json();
       const currentPassword = String(body.currentPassword || "").trim();
       const newPassword = String(body.newPassword || "").trim();
@@ -788,6 +806,43 @@ async function handler(request: Request) {
           values (${userId}, ${token}, now() + interval '72 hours')
         `;
       } catch {}
+
+      // Dispatch credentials email if email is provided
+      const transporter = getTransporter();
+      if (transporter && email) {
+        try {
+          await transporter.sendMail({
+            from: process.env.NOTIFY_EMAIL_FROM || '"Startup Jathara" <akshyatraj@yahoo.com>',
+            to: email,
+            subject: `Your Startup Jathara Credentials - ${role.replace(/_/g, " ").toUpperCase()}`,
+            html: `
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <h2 style="color:#1d4ed8;margin:0 0 10px;font-size:22px;font-weight:800;">Startup Jathara Console</h2>
+                <h3 style="color:#0f172a;font-size:18px;margin:0 0 12px;">Staff Account & Credentials Created</h3>
+                <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 16px;">
+                  Hello <strong>${fullName}</strong>,<br/><br/>
+                  An administrator has generated your staff credentials for the <strong>Startup Jathara Admin & Operations Platform</strong>.
+                </p>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 20px;font-size:14px;color:#334155;">
+                  <div style="margin-bottom:8px;"><strong>Full Name:</strong> ${fullName}</div>
+                  <div style="margin-bottom:8px;"><strong>Work Email:</strong> ${email}</div>
+                  <div style="margin-bottom:8px;"><strong>Assigned Role:</strong> ${role.replace(/_/g, " ")}</div>
+                  <div style="margin-bottom:8px;"><strong>Login Password:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:15px;font-weight:700;color:#b45309;">${password}</code></div>
+                </div>
+                <div style="text-align:center;margin:0 0 24px;">
+                  <a href="https://isf-test-sb9i.vercel.app/login" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;">Log In to Console →</a>
+                </div>
+                <p style="color:#64748b;font-size:12px;line-height:1.4;margin:0 0 8px;">
+                  You can update your password at any time via the <strong>Profile</strong> section after signing in.
+                </p>
+              </div>
+            `,
+          });
+          console.log(`[STAFF CREDENTIALS EMAIL DISPATCHED] to ${email}`);
+        } catch (e) {
+          console.error("[STAFF CREDENTIALS EMAIL ERROR]", e);
+        }
+      }
 
       return Response.json({
         user: {

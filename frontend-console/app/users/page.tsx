@@ -215,14 +215,9 @@ function Users() {
                 <input type="tel" placeholder="+91 98765 43210" value={newMobile} onChange={(e) => setNewMobile(e.target.value)} />
               </label>
             </div>
-            <div className="two">
+            <div>
               <label>Password (Leave blank to auto-generate)
                 <input type="text" placeholder="e.g. Support@2026 or leave blank" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-              </label>
-              <label>Event Edition
-                <select value={newEdition} onChange={(e) => setNewEdition(e.target.value)}>
-                  <option value="2026">Startup Jathara</option>
-                </select>
               </label>
             </div>
             <div>

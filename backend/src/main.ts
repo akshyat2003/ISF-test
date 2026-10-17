@@ -1,15 +1,16 @@
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { createSql } from "./db/client.js";
-import { devIdentityResolver, devVerifier, supabaseIdentityResolver, supabaseVerifier } from "./platform/auth.js";
+import { compositeIdentityResolver, compositeVerifier, devIdentityResolver, devVerifier, supabaseIdentityResolver, supabaseVerifier } from "./platform/auth.js";
 import { rankingModelFrom, sendersFrom, startWorkers } from "./workers.js";
 
 const config = loadConfig();
 const sql = createSql(config.databaseUrl);
 const supabase = config.authMode === "supabase";
-const verifier = supabase ? supabaseVerifier(config.supabaseUrl!) : devVerifier(config.devAuthSecret!);
-const identity = supabase
-  ? supabaseIdentityResolver({ supabaseUrl: config.supabaseUrl!, serviceRoleKey: config.supabaseServiceRoleKey! })
+const devVer = devVerifier(config.devAuthSecret!);
+const verifier = supabase && config.supabaseUrl ? compositeVerifier(supabaseVerifier(config.supabaseUrl), devVer) : devVer;
+const identity = supabase && config.supabaseUrl && config.supabaseServiceRoleKey
+  ? compositeIdentityResolver(supabaseIdentityResolver({ supabaseUrl: config.supabaseUrl, serviceRoleKey: config.supabaseServiceRoleKey }), devIdentityResolver)
   : devIdentityResolver;
 // DEV_NOW pins the clock for local testing only (refused outside AUTH_MODE=dev and in production).
 const clock = () => config.devNow ?? new Date();
