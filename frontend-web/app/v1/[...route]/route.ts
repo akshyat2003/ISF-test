@@ -28,6 +28,26 @@ async function extractPayload(rawToken: string): Promise<any | null> {
   }
 }
 
+function getAuthToken(request: Request): string {
+  const authHeader = request.headers.get("authorization") || "";
+  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (bearer) return bearer;
+
+  const cookieHeader = request.headers.get("cookie") || "";
+  const match =
+    cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/) ||
+    cookieHeader.match(/(?:^|;\s*)sj\.web\.session=([^;]+)/) ||
+    cookieHeader.match(/(?:^|;\s*)sj\.console\.session=([^;]+)/);
+  if (match) {
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
+  }
+  return "";
+}
+
 let sqlInstance: postgres.Sql | null = null;
 function getSql() {
   if (!sqlInstance) {
@@ -474,10 +494,7 @@ async function handler(request: Request) {
 
     // ---------------------------------------------------- GET /v1/me
     if ((path === "/v1/me" || path === "/me" || path.endsWith("/v1/me")) && method === "GET") {
-      const authHeader = request.headers.get("authorization") || "";
-      const cookieHeader = request.headers.get("cookie") || "";
-      const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
-      const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
+      const rawToken = getAuthToken(request);
 
       if (!rawToken) {
         return Response.json({ message: "Authorization required" }, { status: 401 });
@@ -548,10 +565,7 @@ async function handler(request: Request) {
 
     // ---------------------------------------------------- GET /v1/me/profile
     if (path.endsWith("/me/profile") && method === "GET") {
-      const authHeader = request.headers.get("authorization") || "";
-      const cookieHeader = request.headers.get("cookie") || "";
-      const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
-      const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
+      const rawToken = getAuthToken(request);
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
       const payload = await extractPayload(rawToken);
       if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
@@ -571,10 +585,7 @@ async function handler(request: Request) {
 
     // ---------------------------------------------------- PUT /v1/me/profile
     if (path.endsWith("/me/profile") && method === "PUT") {
-      const authHeader = request.headers.get("authorization") || "";
-      const cookieHeader = request.headers.get("cookie") || "";
-      const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
-      const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
+      const rawToken = getAuthToken(request);
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
       const payload = await extractPayload(rawToken);
       if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
@@ -614,10 +625,7 @@ async function handler(request: Request) {
 
     // ---------------------------------------------------- POST /v1/me/password
     if (path.endsWith("/me/password") && method === "POST") {
-      const authHeader = request.headers.get("authorization") || "";
-      const cookieHeader = request.headers.get("cookie") || "";
-      const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
-      const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
+      const rawToken = getAuthToken(request);
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
       const payload = await extractPayload(rawToken);
       if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });

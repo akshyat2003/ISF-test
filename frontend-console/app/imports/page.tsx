@@ -65,7 +65,7 @@ export default function Imports() {
           </label>
           <label>Edition
             <select value={edition} onChange={(e) => setEdition(Number(e.target.value))}>
-              <option value={2026}>2026</option><option value={2027}>2027</option>
+              <option value={2026}>2026</option>
             </select>
           </label>
         </div>

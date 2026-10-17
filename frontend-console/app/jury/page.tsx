@@ -10,8 +10,6 @@ import type { EvaluationReview, JuryOverview, JuryParameter } from "@sj/contract
 import { can, useMe } from "@/lib/me";
 import { api, useSessionEmail } from "@/lib/session";
 import { MfaPrompt } from "../mfa-prompt";
-
-const YEARS = [2026, 2027];
 type Draft = { key: string; label: string; description: string; weight: string; min: string; max: string };
 const toDraft = (p: JuryParameter): Draft => ({ key: p.key, label: p.label, description: p.description, weight: String(p.weight), min: String(p.min), max: String(p.max) });
 /** A datetime-local value is read as IST (PRD NFR-12). */
@@ -86,9 +84,6 @@ function Jury() {
         Jurors score the startups assigned to them against the approved rubric. Their scores support the event&apos;s jury discussion only:
         they are kept apart from AI ranking and never change who was selected. The platform never names a winner.
       </p>
-      <div className="tabs" role="tablist">
-        {YEARS.map((y) => <button key={y} className="tab" aria-current={y === year} onClick={() => router.push(`/jury?edition=${y}`)}>{y}</button>)}
-      </div>
       {error === "mfa_required" ? <MfaPrompt next="/jury" /> : error && <p className="notice notice-error" role="alert">{error}</p>}
       {message && <p className="notice notice-ok" role="status">{message}</p>}
 

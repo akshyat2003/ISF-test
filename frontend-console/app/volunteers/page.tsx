@@ -10,8 +10,6 @@ import type { VolunteerAssignmentItem, VolunteerOverview, VolunteerTarget } from
 import { can, useMe } from "@/lib/me";
 import { api, useSessionEmail } from "@/lib/session";
 import { MfaPrompt } from "../mfa-prompt";
-
-const YEARS = [2026, 2027];
 const targetLabel = (t: VolunteerTarget) => `${t.name} (${t.type === "startup" ? "startup" : "jury member"})`;
 const targetValue = (t: { type: string; id: string }) => `${t.type}:${t.id}`;
 const parseTarget = (v: string) => { const [type, id] = v.split(":"); return { type: type as "startup" | "jury", id: id! }; };
@@ -72,9 +70,6 @@ function Volunteers() {
         Each volunteer is assigned to exactly one startup or one jury member, and each startup and jury member gets at most one volunteer.
         When there are not enough volunteers, the remaining targets are listed as unassigned; nobody is doubled up.
       </p>
-      <div className="tabs" role="tablist">
-        {YEARS.map((y) => <button key={y} className="tab" aria-current={y === year} onClick={() => router.push(`/volunteers?edition=${y}`)}>{y}</button>)}
-      </div>
       {error === "mfa_required" ? <MfaPrompt next="/volunteers" /> : error && <p className="notice notice-error" role="alert">{error}</p>}
       {message && <p className="notice notice-ok" role="status">{message}</p>}
 

@@ -8,8 +8,6 @@ import { FLAG_LABELS } from "@/lib/ranking";
 import { api, useSessionEmail } from "@/lib/session";
 import { MfaPrompt } from "../mfa-prompt";
 
-const YEARS = [2026, 2027];
-
 function Applications() {
   const email = useSessionEmail();
   const router = useRouter();
@@ -69,11 +67,6 @@ function Applications() {
   return (
     <>
       <h1>Applications</h1>
-      <div className="tabs" role="tablist">
-        {YEARS.map((y) => (
-          <button key={y} className="tab" aria-current={y === year} onClick={() => go({ edition: String(y), status: "" })}>{y}</button>
-        ))}
-      </div>
 
       {error === "mfa_required" ? <MfaPrompt next="/applications" /> : error && <p className="notice notice-error" role="alert">{error}</p>}
       {message && <p className="notice notice-ok">{message}</p>}

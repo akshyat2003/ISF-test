@@ -612,26 +612,6 @@ export default function DashboardPage() {
             Access: <strong>{isAdmin ? "Super Administrator" : "Staff Console"}</strong>
           </span>
         </div>
-        <div className="system-item">
-          <button
-            onClick={() => {
-              signOut();
-              router.replace("/login");
-            }}
-            style={{
-              background: "#fee2e2",
-              color: "#dc2626",
-              border: "none",
-              padding: "6px 14px",
-              borderRadius: "8px",
-              fontWeight: 600,
-              fontSize: "12px",
-              cursor: "pointer",
-            }}
-          >
-            Sign Out
-          </button>
-        </div>
       </div>
     </div>
   );

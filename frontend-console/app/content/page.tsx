@@ -13,8 +13,6 @@ import {
 } from "@sj/contracts";
 import { api, useSessionEmail } from "@/lib/session";
 import { MfaPrompt } from "../mfa-prompt";
-
-const YEARS = [2026, 2027];
 type Tab = ContentType | "documents";
 type Form = { id: string | null; type: ContentType; title: string; audience: ContentAudience[]; f: Record<string, string>; tentative: boolean };
 
@@ -164,9 +162,6 @@ function Content() {
         Edits stay drafts until you publish them. The Admin maintains documents, emergency contacts, safety guidelines and information pages;
         Management maintains the schedule, venues, food, accommodation and travel (TBD-24).
       </p>
-      <div className="tabs" role="tablist" aria-label="Edition">
-        {YEARS.map((y) => <button key={y} className="tab" aria-current={y === year} onClick={() => router.push(`/content?edition=${y}&tab=${tab}`)}>{y}</button>)}
-      </div>
       <div className="tabs" role="tablist" aria-label="Information type" style={{ flexWrap: "wrap" }}>
         {[...CONTENT_TYPES, "documents" as const].map((t) => (
           <button key={t} className="tab" aria-current={t === tab} onClick={() => { setForm(null); setUpload(null); go({ tab: t }); }}>

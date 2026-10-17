@@ -174,11 +174,13 @@ function NewTicket({ onCreated, editions }: { onCreated: (id: string) => void; e
           </div>
         )}
         <div className="toolbar">
-          <label>Edition
-            <select value={edition} onChange={(e) => setEdition(e.target.value)}>
-              {[...new Set([...editions, 2026, 2027])].sort().map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </label>
+          {editions.length > 1 && (
+            <label>Edition
+              <select value={edition} onChange={(e) => setEdition(e.target.value)}>
+                {editions.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </label>
+          )}
           <label>Priority
             <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
               <option value="normal">Normal</option><option value="high">High</option><option value="emergency">Emergency (high)</option>
@@ -210,7 +212,7 @@ function Policy({ year: initial }: { year: number }) {
     <section className="card" style={{ marginTop: 24 }}>
       <h2>Acknowledgement windows</h2>
       <p className="muted small">Pending organiser approval (TBD-27). Changes apply to tickets raised afterwards and to re-alert timing at once.</p>
-      <label>Edition <select value={year} onChange={(e) => setYear(Number(e.target.value))}><option>2026</option><option>2027</option></select></label>
+      <label>Edition <select value={year} onChange={(e) => setYear(Number(e.target.value))}><option>2026</option></select></label>
       {p && (
         <form className="stack" onSubmit={(e) => {
           e.preventDefault();

@@ -9,8 +9,6 @@ import { ApiError, formatIst } from "@sj/client";
 import { AUDIENCE_LABEL, PARTICIPANT_ROLES, type NoticeAudience, type NoticePreview, type NoticesOverview, type ParticipantRole } from "@sj/contracts";
 import { api, useSessionEmail } from "@/lib/session";
 import { MfaPrompt } from "../mfa-prompt";
-
-const YEARS = [2026, 2027];
 type Compose = { title: string; body: string; kind: "everyone" | "roles" | "group"; roles: ParticipantRole[]; groupId: string; sendPush: boolean };
 const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 const empty: Compose = { title: "", body: "", kind: "everyone", roles: [], groupId: "", sendPush: true };
@@ -62,12 +60,9 @@ function Notices() {
     <>
       <h1>Notices</h1>
       <p className="muted">
-        Notices go to the app inbox of everyone in the chosen audience who takes part in the {year} event and, if you choose, as a push notification
+        Notices go to the app inbox of everyone in the chosen audience who takes part in the event and, if you choose, as a push notification
         to their phones. No email, SMS or WhatsApp (TBD-29). You can correct or withdraw a notice later; both are recorded.
       </p>
-      <div className="tabs" role="tablist">
-        {YEARS.map((y) => <button key={y} className="tab" aria-current={y === year} onClick={() => router.push(`/notices?edition=${y}`)}>{y}</button>)}
-      </div>
       {error === "mfa_required" ? <MfaPrompt next="/notices" /> : error && <p className="notice notice-error" role="alert">{error}</p>}
       {message && <p className="notice notice-ok" role="status">{message}</p>}
 

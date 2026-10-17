@@ -137,7 +137,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 </label>
                 <label>Edition
                   <select value={edition} onChange={(e) => setEdition(e.target.value)}>
-                    <option value="">All editions</option><option value="2026">2026</option><option value="2027">2027</option>
+                    <option value="">All editions</option><option value="2026">Current edition</option>
                   </select>
                 </label>
                 <button className="btn btn-sm" disabled={busy}>Grant role</button>

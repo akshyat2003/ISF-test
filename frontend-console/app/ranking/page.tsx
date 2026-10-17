@@ -9,8 +9,6 @@ import type { Criterion, CriteriaSet, RankingRunSummary } from "@sj/contracts";
 import { api, useSessionEmail } from "@/lib/session";
 import { MfaPrompt } from "../mfa-prompt";
 
-const YEARS = [2026, 2027];
-
 type Draft = { key: string; label: string; description: string; weight: string; min: string; max: string; guidance: string };
 const toDraft = (c: Criterion): Draft => ({
   key: c.key, label: c.label, description: c.description, weight: String(c.weight), min: String(c.min), max: String(c.max), guidance: c.guidance.join("\n"),
@@ -93,11 +91,6 @@ function Ranking() {
         The AI scores each application against criteria that Management approves, and ranks them. It only recommends:
         Management makes every decision on the Applications page. Applicants never see AI scores.
       </p>
-      <div className="tabs" role="tablist">
-        {YEARS.map((y) => (
-          <button key={y} className="tab" aria-current={y === year} onClick={() => router.push(`/ranking?edition=${y}`)}>{y}</button>
-        ))}
-      </div>
       {error === "mfa_required" ? <MfaPrompt next="/ranking" /> : error && <p className="notice notice-error" role="alert">{error}</p>}
       {message && <p className="notice notice-ok">{message}</p>}
 

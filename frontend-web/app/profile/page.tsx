@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSessionIdentity } from "@/lib/session";
+import { useSessionIdentity, api } from "@/lib/session";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -35,30 +35,77 @@ export default function ProfilePage() {
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
+  function getAuthHeaders(): HeadersInit {
+    if (typeof window === "undefined") return { "Content-Type": "application/json" };
+    function getCookie(name: string): string | null {
+      const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+      return match ? decodeURIComponent(match[1]!) : null;
+    }
+    const tok =
+      sessionStorage.getItem("sj.web.session") ||
+      sessionStorage.getItem("sj_token") ||
+      sessionStorage.getItem("sj.console.session") ||
+      localStorage.getItem("sj.web.session") ||
+      localStorage.getItem("sj_token") ||
+      localStorage.getItem("sj.console.session") ||
+      getCookie("sj.web.session") ||
+      getCookie("sj_token") ||
+      getCookie("sj.console.session");
+    return {
+      "Content-Type": "application/json",
+      ...(tok ? { authorization: `Bearer ${tok}` } : {}),
+    };
+  }
+
   async function loadProfile() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/v1/me/profile");
-      if (!res.ok) {
-        throw new Error("Failed to load profile details");
+      if (email) {
+        setProfile((prev: any) => prev || { email, fullName: email.split("@")[0] });
+        setFullName((prev) => prev || email.split("@")[0]);
       }
-      const data = await res.json();
-      if (data?.user) {
-        setProfile(data.user);
-        setFullName(data.user.fullName || "");
-        setMobile(data.user.mobile || "");
-        setAltMobile(data.user.altMobile || "");
-        setCity(data.user.city || "");
-        setState(data.user.state || "");
-        setCountry(data.user.country || "India");
-        setDomain(data.user.domain || "");
-        setTeamName(data.user.teamName || "");
-        setTeamMembers(data.user.teamMembers || "");
-        setLinkedinUrl(data.user.linkedinUrl || "");
+
+      const res = await fetch("/v1/me/profile", { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.user) {
+          setProfile(data.user);
+          setFullName(data.user.fullName || "");
+          setMobile(data.user.mobile || "");
+          setAltMobile(data.user.altMobile || "");
+          setCity(data.user.city || "");
+          setState(data.user.state || "");
+          setCountry(data.user.country || "India");
+          setDomain(data.user.domain || "");
+          setTeamName(data.user.teamName || "");
+          setTeamMembers(data.user.teamMembers || "");
+          setLinkedinUrl(data.user.linkedinUrl || "");
+          return;
+        }
+      }
+
+      // Fallback: try api.me()
+      const freshMe = await api.me().catch(() => null);
+      if (freshMe?.account) {
+        const u = freshMe.account as any;
+        setProfile(u);
+        setFullName(u.fullName || "");
+        setMobile(u.mobile || "");
+        setAltMobile(u.altMobile || "");
+        setCity(u.city || "");
+        setState(u.state || "");
+        setCountry(u.country || "India");
+        setDomain(u.domain || "");
+        setTeamName(u.teamName || "");
+        setTeamMembers(u.teamMembers || "");
+        setLinkedinUrl(u.linkedinUrl || "");
+        return;
       }
     } catch (err) {
-      setError((err as Error).message);
+      if (!email) {
+        setError((err as Error).message);
+      }
     } finally {
       setLoading(false);
     }
@@ -82,7 +129,7 @@ export default function ProfilePage() {
     try {
       const res = await fetch("/v1/me/profile", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           fullName,
           mobile,
@@ -127,7 +174,7 @@ export default function ProfilePage() {
     try {
       const res = await fetch("/v1/me/password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           currentPassword,
           newPassword,

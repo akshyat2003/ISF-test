@@ -162,8 +162,7 @@ function Users() {
               </label>
               <label>Event Edition
                 <select value={newEdition} onChange={(e) => setNewEdition(e.target.value)}>
-                  <option value="2026">Startup Jathara 2026</option>
-                  <option value="2027">Startup Jathara 2027</option>
+                  <option value="2026">Startup Jathara</option>
                 </select>
               </label>
             </div>
