@@ -4,10 +4,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CONSOLE_RETURN_PATHS, safeReturnPath } from "@sj/contracts";
 import { authMode, startSignIn, verifyCode } from "@/lib/session";
 
+const DEFAULT_ADMIN_PASSWORD = "Udbhav@2026";
+
+const ADMIN_ACCOUNTS = [
+  { email: "sarangeeamartya@gmail.com", name: "Amartya Sarangee" },
+  { email: "arushkumar450@gmail.com", name: "Arush Kumar" },
+  { email: "akshatrajpati@gmail.com", name: "Akshat Rajpati" },
+] as const;
+
 function LoginForm() {
   const router = useRouter();
   const next = safeReturnPath(useSearchParams().get("next"), CONSOLE_RETURN_PATHS, "/");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("sarangeeamartya@gmail.com");
+  const [password, setPassword] = useState(DEFAULT_ADMIN_PASSWORD);
   const [code, setCode] = useState("");
   const [stage, setStage] = useState<"email" | "code">("email");
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +45,12 @@ function LoginForm() {
     }
   }
 
+  function selectAdmin(adminEmail: string) {
+    setEmail(adminEmail);
+    setPassword(DEFAULT_ADMIN_PASSWORD);
+    setError(null);
+  }
+
   return (
     <div className="login-card-wrapper">
       <style jsx>{`
@@ -55,7 +70,7 @@ function LoginForm() {
           overflow: hidden;
           box-shadow: 0 25px 60px -15px rgba(30, 58, 138, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.05);
           display: grid;
-          grid-template-columns: 1fr 1.12fr;
+          grid-template-columns: 1fr 1.15fr;
         }
         .login-banner {
           background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 50%, #1e40af 100%);
@@ -111,7 +126,7 @@ function LoginForm() {
           margin-top: 32px;
         }
         .login-form-side {
-          padding: 52px 48px;
+          padding: 48px 44px;
           background: #ffffff;
           display: flex;
           flex-direction: column;
@@ -121,7 +136,7 @@ function LoginForm() {
           font-size: 1.5rem;
           font-weight: 800;
           color: #0f172a;
-          margin-bottom: 36px;
+          margin-bottom: 28px;
           letter-spacing: -0.02em;
         }
         .welcome-title {
@@ -134,14 +149,14 @@ function LoginForm() {
         .welcome-subtitle {
           font-size: 0.875rem;
           color: #64748b;
-          margin: 0 0 28px;
+          margin: 0 0 24px;
           line-height: 1.5;
         }
         .welcome-subtitle strong {
           color: #1e293b;
         }
         .input-group {
-          margin-bottom: 20px;
+          margin-bottom: 18px;
         }
         .input-label {
           display: block;
@@ -198,18 +213,21 @@ function LoginForm() {
           font-size: 0.85rem;
           margin-bottom: 18px;
         }
-        .dev-chips {
+        .admin-chips {
           margin-top: 24px;
-          padding-top: 20px;
+          padding-top: 18px;
           border-top: 1px solid #f1f5f9;
         }
-        .dev-chips-title {
+        .admin-chips-title {
           font-size: 0.75rem;
-          color: #94a3b8;
+          color: #64748b;
           text-transform: uppercase;
           font-weight: 700;
           letter-spacing: 0.05em;
           margin-bottom: 8px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
         }
         .chip-list {
           display: flex;
@@ -217,19 +235,25 @@ function LoginForm() {
           flex-wrap: wrap;
         }
         .chip-btn {
-          font-size: 0.75rem;
-          padding: 5px 10px;
+          font-size: 0.775rem;
+          padding: 6px 12px;
           background: #f1f5f9;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          color: #475569;
-          font-family: monospace;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 8px;
+          color: #334155;
+          font-weight: 600;
           cursor: pointer;
           transition: all 0.15s ease;
         }
         .chip-btn:hover {
           background: #e2e8f0;
           color: #0f172a;
+          border-color: #cbd5e1;
+        }
+        .chip-btn.active {
+          background: #eff6ff;
+          border-color: #3b82f6;
+          color: #1d4ed8;
         }
         @media (max-width: 768px) {
           .login-card {
@@ -297,19 +321,34 @@ function LoginForm() {
 
           <form onSubmit={submit}>
             {stage === "email" ? (
-              <div className="input-group">
-                <label className="input-label" htmlFor="work-email">Work Email</label>
-                <input
-                  id="work-email"
-                  type="email"
-                  required
-                  autoFocus
-                  placeholder="admin@domain.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="styled-input"
-                />
-              </div>
+              <>
+                <div className="input-group">
+                  <label className="input-label" htmlFor="work-email">Work Email</label>
+                  <input
+                    id="work-email"
+                    type="email"
+                    required
+                    autoFocus
+                    placeholder="admin@domain.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="styled-input"
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label" htmlFor="work-password">Password</label>
+                  <input
+                    id="work-password"
+                    type="password"
+                    required
+                    placeholder="••••••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="styled-input"
+                  />
+                </div>
+              </>
             ) : (
               <div className="input-group">
                 <label className="input-label" htmlFor="otp-code">One-time Security Code</label>
@@ -342,34 +381,25 @@ function LoginForm() {
             </button>
           </form>
 
-          {authMode === "dev" && (
-            <div className="dev-chips">
-              <div className="dev-chips-title">Development Quick Fill</div>
-              <div className="chip-list">
-                <button
-                  type="button"
-                  className="chip-btn"
-                  onClick={() => { setEmail("admin@dev.local"); setError(null); }}
-                >
-                  admin@dev.local (Admin)
-                </button>
-                <button
-                  type="button"
-                  className="chip-btn"
-                  onClick={() => { setEmail("support@dev.local"); setError(null); }}
-                >
-                  support@dev.local (Support)
-                </button>
-                <button
-                  type="button"
-                  className="chip-btn"
-                  onClick={() => { setEmail("manager@dev.local"); setError(null); }}
-                >
-                  manager@dev.local (Management)
-                </button>
-              </div>
+          {/* Dedicated Quick Login Chips for the 3 Admin Emails */}
+          <div className="admin-chips">
+            <div className="admin-chips-title">
+              <span>Admin Accounts</span>
+              <span style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "none", fontWeight: 500 }}>Default: {DEFAULT_ADMIN_PASSWORD}</span>
             </div>
-          )}
+            <div className="chip-list">
+              {ADMIN_ACCOUNTS.map((adm) => (
+                <button
+                  key={adm.email}
+                  type="button"
+                  className={`chip-btn ${email === adm.email ? "active" : ""}`}
+                  onClick={() => selectAdmin(adm.email)}
+                >
+                  {adm.name}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

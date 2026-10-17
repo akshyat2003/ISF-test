@@ -11,6 +11,9 @@ const STAFF = [
   { email: "manager2@dev.local", name: "Dev Manager 2", roles: ["management"] },
   { email: "admin@dev.local", name: "Dev Admin (no management grant)", roles: ["admin"] },
   { email: "support@dev.local", name: "Dev Support", roles: ["customer_support"] },
+  { email: "sarangeeamartya@gmail.com", name: "Amartya Sarangee", roles: ["admin", "management"] },
+  { email: "arushkumar450@gmail.com", name: "Arush Kumar", roles: ["admin", "management"] },
+  { email: "akshatrajpati@gmail.com", name: "Akshat Rajpati", roles: ["admin", "management"] },
 ] as const;
 
 // Synthetic applicants only: invented names, example.test addresses, no real people.
