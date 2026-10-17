@@ -33,7 +33,7 @@ const CATEGORIES: CategoryMeta[] = [
     badge: "Student Innovators",
     icon: "🎓",
     desc: "Undergraduates, researchers & college teams with working prototypes",
-    teamLabel: "Project / Team / College Name",
+    teamLabel: "Startup / Team Name",
   },
   {
     id: "volunteer",
@@ -145,6 +145,8 @@ export default function RegisterPage() {
 
   const activeCategory = CATEGORIES.find((c) => c.id === category) || CATEGORIES[0];
   const isStartupLeader = category === "startup_founder";
+  const isStudentInnovator = category === "student_innovator";
+  const isStartupOrInnovator = isStartupLeader || isStudentInnovator;
 
   // Team lead photo upload handler
   const leadFileInputRef = useRef<HTMLInputElement>(null);
@@ -224,8 +226,8 @@ export default function RegisterPage() {
       return;
     }
 
-    // Startup Leader Strict Compulsory Validations
-    if (isStartupLeader) {
+    // Startup Leader & Student Innovator Strict Compulsory Validations
+    if (isStartupOrInnovator) {
       if (!teamName.trim()) {
         setError("Please enter your Startup / Team Name.");
         return;
@@ -318,7 +320,7 @@ export default function RegisterPage() {
           state: state.trim(),
           country: country.trim(),
           linkedinUrl: linkedinUrl.trim(),
-          members: isStartupLeader ? members : [],
+          members: isStartupOrInnovator ? members : [],
         }),
       });
 
@@ -339,7 +341,7 @@ export default function RegisterPage() {
         role: data.role || "startup_team_leader",
         teamName: teamName.trim(),
         leadPhoto: leadPhoto,
-        members: isStartupLeader ? members : [],
+        members: isStartupOrInnovator ? members : [],
       });
     } catch (err) {
       setError((err as Error).message || "An unexpected error occurred. Please try again.");
@@ -1056,60 +1058,11 @@ export default function RegisterPage() {
               ))}
             </div>
 
-            {/* 2. Startup Leader Photo Upload */}
+            {/* Step 2 · Team Lead & Startup/Innovation Details */}
             <div className="section-label">
-              <span>Step 2 · Team Lead & Startup Details</span>
-              <span className="section-tag">{isStartupLeader ? "All fields compulsory *" : "Required details *"}</span>
+              <span>Step 2 · {category === "volunteer" ? "Volunteer Details" : isStudentInnovator ? "Team Lead & Innovation Details" : "Team Lead & Startup Details"}</span>
+              <span className="section-tag">{isStartupOrInnovator ? "All fields compulsory *" : "Required details *"}</span>
             </div>
-
-            {isStartupLeader && (
-              <div className="photo-uploader">
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={leadFileInputRef}
-                  style={{ display: "none" }}
-                  onChange={handleLeadPhotoChange}
-                />
-                <div
-                  className="photo-avatar-box"
-                  onClick={() => leadFileInputRef.current?.click()}
-                  style={{ cursor: "pointer" }}
-                >
-                  {leadPhoto ? (
-                    <img src={leadPhoto} alt="Leader Preview" className="photo-avatar-img" />
-                  ) : (
-                    <span className="photo-avatar-placeholder">📷</span>
-                  )}
-                </div>
-                <div className="photo-upload-meta">
-                  <div className="photo-upload-title">
-                    Team Lead Photograph <span className="input-req">*</span>
-                  </div>
-                  <div className="photo-upload-sub">
-                    Upload a clear headshot photo (JPG, PNG, WEBP). Compulsory for summit badge & profile.
-                  </div>
-                  <div className="photo-btn-row">
-                    <button
-                      type="button"
-                      className="btn-photo-pick"
-                      onClick={() => leadFileInputRef.current?.click()}
-                    >
-                      {leadPhoto ? "Change Photo" : "Upload Photo"}
-                    </button>
-                    {leadPhoto && (
-                      <button
-                        type="button"
-                        className="btn-photo-remove"
-                        onClick={() => setLeadPhoto("")}
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Form Inputs Grid */}
             <div className="form-grid">
@@ -1205,13 +1158,13 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="altMobile">
-                  <span>Alternate Phone Number {isStartupLeader && <span className="input-req">*</span>}</span>
+                  <span>Alternate Phone Number {isStartupOrInnovator && <span className="input-req">*</span>}</span>
                 </label>
                 <input
                   id="altMobile"
                   className="input-field"
                   type="tel"
-                  required={isStartupLeader}
+                  required={isStartupOrInnovator}
                   placeholder="Secondary / Emergency contact"
                   value={altMobile}
                   onChange={(e) => setAltMobile(e.target.value)}
@@ -1239,13 +1192,13 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="city">
-                  <span>City {isStartupLeader && <span className="input-req">*</span>}</span>
+                  <span>City {isStartupOrInnovator && <span className="input-req">*</span>}</span>
                 </label>
                 <input
                   id="city"
                   className="input-field"
                   type="text"
-                  required={isStartupLeader}
+                  required={isStartupOrInnovator}
                   placeholder="e.g. Bhubaneswar / Gunupur"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
@@ -1254,13 +1207,13 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="state">
-                  <span>State {isStartupLeader && <span className="input-req">*</span>}</span>
+                  <span>State {isStartupOrInnovator && <span className="input-req">*</span>}</span>
                 </label>
                 <input
                   id="state"
                   className="input-field"
                   type="text"
-                  required={isStartupLeader}
+                  required={isStartupOrInnovator}
                   placeholder="e.g. Odisha"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
@@ -1269,13 +1222,13 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="country">
-                  <span>Country {isStartupLeader && <span className="input-req">*</span>}</span>
+                  <span>Country {isStartupOrInnovator && <span className="input-req">*</span>}</span>
                 </label>
                 <input
                   id="country"
                   className="input-field"
                   type="text"
-                  required={isStartupLeader}
+                  required={isStartupOrInnovator}
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                 />
@@ -1283,22 +1236,74 @@ export default function RegisterPage() {
 
               <div className="input-group form-full">
                 <label className="input-label" htmlFor="linkedinUrl">
-                  <span>LinkedIn Profile / URL {isStartupLeader && <span className="input-req">*</span>}</span>
+                  <span>LinkedIn Profile / URL {isStartupOrInnovator && <span className="input-req">*</span>}</span>
                 </label>
                 <input
                   id="linkedinUrl"
                   className="input-field"
                   type="url"
-                  required={isStartupLeader}
+                  required={isStartupOrInnovator}
                   placeholder="https://linkedin.com/in/username"
                   value={linkedinUrl}
                   onChange={(e) => setLinkedinUrl(e.target.value)}
                 />
               </div>
+
+              {/* Team Lead Photograph (Right below LinkedIn URL) */}
+              {isStartupOrInnovator && (
+                <div className="form-full" style={{ marginTop: "4px" }}>
+                  <div className="photo-uploader">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={leadFileInputRef}
+                      style={{ display: "none" }}
+                      onChange={handleLeadPhotoChange}
+                    />
+                    <div
+                      className="photo-avatar-box"
+                      onClick={() => leadFileInputRef.current?.click()}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {leadPhoto ? (
+                        <img src={leadPhoto} alt="Leader Preview" className="photo-avatar-img" />
+                      ) : (
+                        <span className="photo-avatar-placeholder">📷</span>
+                      )}
+                    </div>
+                    <div className="photo-upload-meta">
+                      <div className="photo-upload-title">
+                        Team Lead Photograph <span className="input-req">*</span>
+                      </div>
+                      <div className="photo-upload-sub">
+                        Upload a clear headshot photo (JPG, PNG, WEBP). Compulsory for summit badge & profile.
+                      </div>
+                      <div className="photo-btn-row">
+                        <button
+                          type="button"
+                          className="btn-photo-pick"
+                          onClick={() => leadFileInputRef.current?.click()}
+                        >
+                          {leadPhoto ? "Change Photo" : "Upload Photo"}
+                        </button>
+                        {leadPhoto && (
+                          <button
+                            type="button"
+                            className="btn-photo-remove"
+                            onClick={() => setLeadPhoto("")}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* 3. Team Members Details (compulsory for startup leader, max 5) */}
-            {isStartupLeader && (
+            {/* 3. Team Members Details (compulsory for startup leader & student innovator, max 5) */}
+            {isStartupOrInnovator && (
               <>
                 <div className="section-label">
                   <span>Step 3 · Team Members Details (Max 5 Members)</span>

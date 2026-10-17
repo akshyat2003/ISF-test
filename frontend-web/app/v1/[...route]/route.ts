@@ -407,7 +407,10 @@ async function handler(request: Request) {
       }
 
       const isStartupLeader = category === "startup_founder" || category === "startup_team_leader" || category === "startup_leader";
-      if (isStartupLeader) {
+      const isStudentInnovator = category === "student_innovator";
+      const isStartupOrInnovator = isStartupLeader || isStudentInnovator;
+
+      if (isStartupOrInnovator) {
         if (!teamName) {
           return Response.json({ message: "Startup / Team name is required" }, { status: 400 });
         }
@@ -486,8 +489,8 @@ async function handler(request: Request) {
 
       // Map category to system role
       let role = "delegate";
-      if (isStartupLeader) role = "startup_team_leader";
-      else if (category === "student_innovator" || category === "startup_team_member") role = "startup_team_member";
+      if (isStartupLeader || isStudentInnovator) role = "startup_team_leader";
+      else if (category === "startup_team_member") role = "startup_team_member";
       else if (category === "volunteer") role = "volunteer";
       else if (category === "mentor" || category === "jury_member") role = "jury_member";
       else if (category === "management") role = "management";
@@ -663,10 +666,23 @@ async function handler(request: Request) {
             `
             : "";
 
+          const emailSubject = isStudentInnovator
+            ? `Welcome to ISF Startup Jathara 2026 - ${teamName || fullName} (Student Innovator) Registration Confirmed`
+            : `Welcome to ISF Startup Jathara 2026 - ${teamName || fullName} Registration Confirmed`;
+          const bannerTitle = isStudentInnovator
+            ? "🎉 Student Innovator Registration Confirmed!"
+            : "🎉 Startup Registration Confirmed!";
+          const bannerDesc = isStudentInnovator
+            ? `Dear <strong>${fullName}</strong>, your student innovation credentials, project profile, and team members have been saved to the summit database.`
+            : `Dear <strong>${fullName}</strong>, your startup credentials and team members have been saved to the summit database.`;
+          const profileTitle = isStudentInnovator
+            ? "Student Innovator & Team Profile"
+            : "Team Leader & Startup Profile";
+
           await transporter.sendMail({
             from: process.env.NOTIFY_EMAIL_FROM || '"ISF 2026" <akshyatraj@yahoo.com>',
             to: email,
-            subject: `Welcome to ISF Startup Jathara 2026 - ${teamName || fullName} Registration Confirmed`,
+            subject: emailSubject,
             html: `
               <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,0.06);">
                 <div style="margin-bottom:16px;">
@@ -676,18 +692,18 @@ async function handler(request: Request) {
                 </div>
 
                 <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:16px;margin:16px 0 20px;">
-                  <h3 style="color:#065f46;font-size:16px;margin:0 0 6px;">🎉 Startup Registration Confirmed!</h3>
+                  <h3 style="color:#065f46;font-size:16px;margin:0 0 6px;">${bannerTitle}</h3>
                   <p style="color:#047857;font-size:13px;margin:0;line-height:1.4;">
-                    Dear <strong>${fullName}</strong>, your startup credentials and team members have been saved to the summit database.
+                    ${bannerDesc}
                   </p>
                 </div>
 
                 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin:0 0 16px;font-size:13px;color:#334155;line-height:1.6;">
                   <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">
-                    Team Leader & Startup Profile
+                    ${profileTitle}
                   </div>
                   ${storedLeaderPhoto ? `<div style="margin-bottom:10px;"><img src="${storedLeaderPhoto}" alt="Team Lead" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #2563eb;" /></div>` : ""}
-                  <div style="margin-bottom:6px;"><strong>Startup / Team:</strong> ${teamName || "N/A"}</div>
+                  <div style="margin-bottom:6px;"><strong>${isStudentInnovator ? "Project / Team:" : "Startup / Team:"}</strong> ${teamName || "N/A"}</div>
                   <div style="margin-bottom:6px;"><strong>Team Lead Name:</strong> ${fullName}</div>
                   <div style="margin-bottom:6px;"><strong>Registered Email:</strong> ${email}</div>
                   <div style="margin-bottom:6px;"><strong>Primary Phone:</strong> ${mobile || "N/A"}</div>
@@ -700,7 +716,7 @@ async function handler(request: Request) {
                 ${membersListHtml}
 
                 <p style="color:#475569;font-size:14px;line-height:1.5;margin:24px 0 16px;">
-                  You can now log in to the portal using your registered email and password to track your startup review, schedule pitches, and connect with mentors:
+                  You can now log in to the portal using your registered email and password to track your ${isStudentInnovator ? "innovation prototype review" : "startup review"}, schedule pitches, and connect with mentors:
                 </p>
                 <div style="text-align:center;margin:0 0 24px;">
                   <a href="https://isf-test.vercel.app/signin" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;box-shadow:0 4px 10px rgba(37,99,235,0.2);">Log In to Portal →</a>
