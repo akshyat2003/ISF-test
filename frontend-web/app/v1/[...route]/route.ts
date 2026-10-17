@@ -389,6 +389,11 @@ async function handler(request: Request) {
       const country = String(body.country || "India").trim();
       const linkedinUrl = String(body.linkedinUrl || "").trim();
 
+      const redgNo = String(body.redgNo || "").trim();
+      const rollNo = String(body.rollNo || "").trim();
+      const organisationName = String(body.organisationName || body.teamName || "").trim();
+      const isVolunteer = category === "volunteer";
+
       // Parse structured members
       const rawMembers: Array<any> = Array.isArray(body.members) ? body.members : [];
       const members: Array<{ name: string; photoUrl?: string; phone: string; email: string }> = rawMembers.slice(0, 5).map((m: any) => ({
@@ -403,7 +408,7 @@ async function handler(request: Request) {
         return Response.json({ message: "A valid email address is required" }, { status: 400 });
       }
       if (!fullName) {
-        return Response.json({ message: "Team lead full name is required" }, { status: 400 });
+        return Response.json({ message: "Full name is required" }, { status: 400 });
       }
 
       const isStartupLeader = category === "startup_founder" || category === "startup_team_leader" || category === "startup_leader";
@@ -450,11 +455,27 @@ async function handler(request: Request) {
         }
       }
 
+      if (isVolunteer) {
+        if (!fullName) return Response.json({ message: "Volunteer full name is required" }, { status: 400 });
+        if (!photoUrl) return Response.json({ message: "Volunteer photograph is required" }, { status: 400 });
+        if (!organisationName && !teamName) return Response.json({ message: "Organisation name is required" }, { status: 400 });
+        if (!redgNo) return Response.json({ message: "Registration number (redg no) is required" }, { status: 400 });
+        if (!rollNo) return Response.json({ message: "Roll number / student ID is required" }, { status: 400 });
+        if (!mobile) return Response.json({ message: "Primary phone number is required" }, { status: 400 });
+        if (!altMobile) return Response.json({ message: "Alternate phone number is required" }, { status: 400 });
+        if (!city) return Response.json({ message: "City is required" }, { status: 400 });
+        if (!state) return Response.json({ message: "State is required" }, { status: 400 });
+        if (!country) return Response.json({ message: "Country is required" }, { status: 400 });
+      }
+
       // Ensure DB table & columns exist
       try {
         await sql`
           alter table user_accounts add column if not exists photo_url text;
           alter table user_accounts add column if not exists team_members_json jsonb;
+          alter table user_accounts add column if not exists redg_no text;
+          alter table user_accounts add column if not exists roll_no text;
+          alter table user_accounts add column if not exists organisation_name text;
           create table if not exists startup_team_members (
             id uuid primary key default gen_random_uuid(),
             startup_id uuid references startups(id) on delete cascade,
@@ -471,11 +492,11 @@ async function handler(request: Request) {
         console.warn("[DB SCHEMA ENSURE]", err);
       }
 
-      // Upload leader photo to ImageKit if provided as base64
+      // Upload leader / volunteer photo to ImageKit if provided as base64
       let storedLeaderPhoto = photoUrl;
       if (photoUrl && !photoUrl.startsWith("http")) {
-        const cleanName = fullName.replace(/[^a-zA-Z0-9]/g, "_") || "leader";
-        storedLeaderPhoto = await uploadToImageKit(photoUrl, `lead_${Date.now()}_${cleanName}.jpg`);
+        const cleanName = fullName.replace(/[^a-zA-Z0-9]/g, "_") || (isVolunteer ? "volunteer" : "leader");
+        storedLeaderPhoto = await uploadToImageKit(photoUrl, `${isVolunteer ? "volunteer" : "lead"}_${Date.now()}_${cleanName}.jpg`);
       }
 
       // Upload member photos to ImageKit if provided as base64
@@ -508,12 +529,14 @@ async function handler(request: Request) {
         insert into user_accounts (
           auth_subject, email, full_name, mobile_e164, password_hash,
           status, category, team_name, team_members, team_members_json, photo_url,
-          domain, alt_mobile, city, state, country, linkedin_url
+          domain, alt_mobile, city, state, country, linkedin_url,
+          redg_no, roll_no, organisation_name
         )
         values (
           ${authSub}, ${email}, ${fullName}, ${mobile || null}, ${passwordHash},
-          'active', ${category}, ${teamName || null}, ${teamMembersSummary || null}, ${JSON.stringify(members)}::jsonb, ${storedLeaderPhoto},
-          ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
+          'active', ${category}, ${teamName || organisationName || null}, ${teamMembersSummary || null}, ${JSON.stringify(members)}::jsonb, ${storedLeaderPhoto},
+          ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null},
+          ${redgNo || null}, ${rollNo || null}, ${organisationName || teamName || null}
         )
         on conflict (lower(email)) where email is not null do update
         set auth_subject = ${authSub},
@@ -522,7 +545,7 @@ async function handler(request: Request) {
             password_hash = coalesce(${passwordHash}, user_accounts.password_hash),
             status = 'active',
             category = ${category},
-            team_name = coalesce(${teamName || null}, user_accounts.team_name),
+            team_name = coalesce(${teamName || organisationName || null}, user_accounts.team_name),
             team_members = coalesce(${teamMembersSummary || null}, user_accounts.team_members),
             team_members_json = coalesce(${JSON.stringify(members)}::jsonb, user_accounts.team_members_json),
             photo_url = coalesce(${storedLeaderPhoto}, user_accounts.photo_url),
@@ -532,6 +555,9 @@ async function handler(request: Request) {
             state = coalesce(${state || null}, user_accounts.state),
             country = coalesce(${country || 'India'}, user_accounts.country),
             linkedin_url = coalesce(${linkedinUrl || null}, user_accounts.linkedin_url),
+            redg_no = coalesce(${redgNo || null}, user_accounts.redg_no),
+            roll_no = coalesce(${rollNo || null}, user_accounts.roll_no),
+            organisation_name = coalesce(${organisationName || teamName || null}, user_accounts.organisation_name),
             updated_at = now()
         returning id, email, full_name
       `;
@@ -666,16 +692,27 @@ async function handler(request: Request) {
             `
             : "";
 
-          const emailSubject = isStudentInnovator
+          const emailSubject = isVolunteer
+            ? `Welcome to ISF Startup Jathara 2026 - Volunteer Registration Confirmed (${fullName})`
+            : isStudentInnovator
             ? `Welcome to ISF Startup Jathara 2026 - ${teamName || fullName} (Student Innovator) Registration Confirmed`
             : `Welcome to ISF Startup Jathara 2026 - ${teamName || fullName} Registration Confirmed`;
-          const bannerTitle = isStudentInnovator
+
+          const bannerTitle = isVolunteer
+            ? "🎉 Volunteer Registration Confirmed!"
+            : isStudentInnovator
             ? "🎉 Student Innovator Registration Confirmed!"
             : "🎉 Startup Registration Confirmed!";
-          const bannerDesc = isStudentInnovator
+
+          const bannerDesc = isVolunteer
+            ? `Dear <strong>${fullName}</strong>, your volunteer registration for ISF · Startup Jathara 2026 has been successfully confirmed and recorded into the summit database.`
+            : isStudentInnovator
             ? `Dear <strong>${fullName}</strong>, your student innovation credentials, project profile, and team members have been saved to the summit database.`
             : `Dear <strong>${fullName}</strong>, your startup credentials and team members have been saved to the summit database.`;
-          const profileTitle = isStudentInnovator
+
+          const profileTitle = isVolunteer
+            ? "Volunteer Profile & Summit Credentials"
+            : isStudentInnovator
             ? "Student Innovator & Team Profile"
             : "Team Leader & Startup Profile";
 
@@ -702,21 +739,26 @@ async function handler(request: Request) {
                   <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">
                     ${profileTitle}
                   </div>
-                  ${storedLeaderPhoto ? `<div style="margin-bottom:10px;"><img src="${storedLeaderPhoto}" alt="Team Lead" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #2563eb;" /></div>` : ""}
-                  <div style="margin-bottom:6px;"><strong>${isStudentInnovator ? "Project / Team:" : "Startup / Team:"}</strong> ${teamName || "N/A"}</div>
-                  <div style="margin-bottom:6px;"><strong>Team Lead Name:</strong> ${fullName}</div>
+                  ${storedLeaderPhoto ? `<div style="margin-bottom:10px;"><img src="${storedLeaderPhoto}" alt="Photo" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #2563eb;" /></div>` : ""}
+                  <div style="margin-bottom:6px;"><strong>${isVolunteer ? "Volunteer Full Name:" : "Team Lead Name:"}</strong> ${fullName}</div>
+                  <div style="margin-bottom:6px;"><strong>${isVolunteer ? "Organisation Name:" : isStudentInnovator ? "Project / Team:" : "Startup / Team:"}</strong> ${teamName || organisationName || "N/A"}</div>
+                  ${isVolunteer && redgNo ? `<div style="margin-bottom:6px;"><strong>Registration No (Redg No):</strong> ${redgNo}</div>` : ""}
+                  ${isVolunteer && rollNo ? `<div style="margin-bottom:6px;"><strong>Roll Number / Student ID:</strong> ${rollNo}</div>` : ""}
                   <div style="margin-bottom:6px;"><strong>Registered Email:</strong> ${email}</div>
                   <div style="margin-bottom:6px;"><strong>Primary Phone:</strong> ${mobile || "N/A"}</div>
                   ${altMobile ? `<div style="margin-bottom:6px;"><strong>Alternate Phone:</strong> ${altMobile}</div>` : ""}
-                  <div style="margin-bottom:6px;"><strong>Domain / Sector:</strong> ${domain || "N/A"}</div>
+                  ${!isVolunteer && domain ? `<div style="margin-bottom:6px;"><strong>Domain / Sector:</strong> ${domain || "N/A"}</div>` : ""}
                   <div style="margin-bottom:6px;"><strong>Location:</strong> ${[city, state, country].filter(Boolean).join(", ")}</div>
                   ${linkedinUrl ? `<div style="margin-bottom:6px;"><strong>LinkedIn:</strong> <a href="${linkedinUrl}" target="_blank" style="color:#2563eb;text-decoration:none;">${linkedinUrl}</a></div>` : ""}
+                  ${isVolunteer ? `<div style="margin-bottom:6px;"><strong>Assigned Track:</strong> Summit Operations & Participant Support Volunteer</div>` : ""}
                 </div>
 
                 ${membersListHtml}
 
                 <p style="color:#475569;font-size:14px;line-height:1.5;margin:24px 0 16px;">
-                  You can now log in to the portal using your registered email and password to track your ${isStudentInnovator ? "innovation prototype review" : "startup review"}, schedule pitches, and connect with mentors:
+                  ${isVolunteer
+                    ? "You can now log in to the portal using your registered email and password to view volunteer briefing schedules, duty assignments, and announcements:"
+                    : `You can now log in to the portal using your registered email and password to track your ${isStudentInnovator ? "innovation prototype review" : "startup review"}, schedule pitches, and connect with mentors:`}
                 </p>
                 <div style="text-align:center;margin:0 0 24px;">
                   <a href="https://isf-test.vercel.app/signin" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;box-shadow:0 4px 10px rgba(37,99,235,0.2);">Log In to Portal →</a>

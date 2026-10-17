@@ -41,7 +41,7 @@ const CATEGORIES: CategoryMeta[] = [
     badge: "Volunteers",
     icon: "🤝",
     desc: "Individual student & campus volunteers for summit coordination & venue operations",
-    teamLabel: "Institution / Organization",
+    teamLabel: "Organisation Name",
   },
 ];
 
@@ -125,6 +125,8 @@ export default function RegisterPage() {
   const [state, setState] = useState("");
   const [country, setCountry] = useState("India");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [redgNo, setRedgNo] = useState("");
+  const [rollNo, setRollNo] = useState("");
 
   // Team members (1 to 5 members, compulsory for startup leader)
   const [members, setMembers] = useState<TeamMemberInput[]>([
@@ -140,6 +142,8 @@ export default function RegisterPage() {
     role: string;
     teamName: string;
     leadPhoto: string;
+    redgNo?: string;
+    rollNo?: string;
     members: TeamMemberInput[];
   } | null>(null);
 
@@ -147,6 +151,7 @@ export default function RegisterPage() {
   const isStartupLeader = category === "startup_founder";
   const isStudentInnovator = category === "student_innovator";
   const isStartupOrInnovator = isStartupLeader || isStudentInnovator;
+  const isVolunteer = category === "volunteer";
 
   // Team lead photo upload handler
   const leadFileInputRef = useRef<HTMLInputElement>(null);
@@ -292,6 +297,56 @@ export default function RegisterPage() {
           return;
         }
       }
+    } else if (isVolunteer) {
+      // Volunteer Compulsory Validations
+      if (!fullName.trim()) {
+        setError("Please enter your Volunteer Full Name.");
+        return;
+      }
+      if (!leadPhoto) {
+        setError("Please upload your Volunteer Photograph.");
+        return;
+      }
+      if (!teamName.trim()) {
+        setError("Please enter your Organisation / Institution Name.");
+        return;
+      }
+      if (!redgNo.trim()) {
+        setError("Please enter your Registration Number (Redg No).");
+        return;
+      }
+      if (!rollNo.trim()) {
+        setError("Please enter your Roll Number / Student ID.");
+        return;
+      }
+      if (!normEmail || !normEmail.includes("@")) {
+        setError("Please enter a valid email address.");
+        return;
+      }
+      if (!password || password.length < 6) {
+        setError("Please enter an account password of at least 6 characters.");
+        return;
+      }
+      if (!mobile.trim()) {
+        setError("Please enter your Primary Phone Number.");
+        return;
+      }
+      if (!altMobile.trim()) {
+        setError("Please enter your Alternate Phone Number.");
+        return;
+      }
+      if (!city.trim()) {
+        setError("Please enter your City.");
+        return;
+      }
+      if (!state.trim()) {
+        setError("Please enter your State.");
+        return;
+      }
+      if (!country.trim()) {
+        setError("Please enter your Country.");
+        return;
+      }
     } else {
       // General validation for other categories
       if (!mobile.trim()) {
@@ -309,17 +364,20 @@ export default function RegisterPage() {
         body: JSON.stringify({
           category,
           teamName: teamName.trim(),
+          organisationName: isVolunteer ? teamName.trim() : null,
           fullName: fullName.trim(),
           photoUrl: leadPhoto || null,
           email: normEmail,
           password: password.trim(),
           mobile: mobile.trim(),
           altMobile: altMobile.trim(),
-          domain,
+          redgNo: isVolunteer ? redgNo.trim() : null,
+          rollNo: isVolunteer ? rollNo.trim() : null,
+          domain: isStartupOrInnovator ? domain : null,
           city: city.trim(),
           state: state.trim(),
           country: country.trim(),
-          linkedinUrl: linkedinUrl.trim(),
+          linkedinUrl: isStartupOrInnovator ? linkedinUrl.trim() : null,
           members: isStartupOrInnovator ? members : [],
         }),
       });
@@ -338,9 +396,11 @@ export default function RegisterPage() {
         email: normEmail,
         fullName: fullName.trim(),
         category: activeCategory.title,
-        role: data.role || "startup_team_leader",
+        role: data.role || (isVolunteer ? "volunteer" : "startup_team_leader"),
         teamName: teamName.trim(),
         leadPhoto: leadPhoto,
+        redgNo: isVolunteer ? redgNo.trim() : undefined,
+        rollNo: isVolunteer ? rollNo.trim() : undefined,
         members: isStartupOrInnovator ? members : [],
       });
     } catch (err) {
@@ -504,31 +564,43 @@ export default function RegisterPage() {
         <div className="success-card">
           <div className="success-icon">✓</div>
           {registered.leadPhoto && (
-            <img src={registered.leadPhoto} alt="Team Lead" className="lead-avatar-preview" />
+            <img src={registered.leadPhoto} alt={isVolunteer ? "Volunteer" : "Team Lead"} className="lead-avatar-preview" />
           )}
           <h1 className="success-title">Registration Confirmed!</h1>
           <p className="success-sub">
-            Welcome to <strong>ISF @ Startup Jathara 2026</strong>. Your startup profile and team credentials have been registered into the database.
+            Welcome to <strong>ISF @ Startup Jathara 2026</strong>. Your {registered.category} profile and credentials have been registered into the database.
           </p>
 
           <div className="email-banner">
             <span>✉️</span>
-            <span>A confirmation email has been dispatched to <strong>{registered.email}</strong> with full team details.</span>
+            <span>A confirmation email has been dispatched to <strong>{registered.email}</strong> with full registration details.</span>
           </div>
 
           <div className="info-box">
             {registered.teamName && (
               <div className="info-row">
-                <span className="info-label">Startup Name:</span>
+                <span className="info-label">{isVolunteer ? "Organisation Name:" : "Startup / Team Name:"}</span>
                 <span className="info-val">{registered.teamName}</span>
               </div>
             )}
             <div className="info-row">
-              <span className="info-label">Team Lead:</span>
+              <span className="info-label">{isVolunteer ? "Volunteer Full Name:" : "Team Lead:"}</span>
               <span className="info-val">{registered.fullName}</span>
             </div>
+            {registered.redgNo && (
+              <div className="info-row">
+                <span className="info-label">Registration No (Redg No):</span>
+                <span className="info-val">{registered.redgNo}</span>
+              </div>
+            )}
+            {registered.rollNo && (
+              <div className="info-row">
+                <span className="info-label">Roll Number / Student ID:</span>
+                <span className="info-val">{registered.rollNo}</span>
+              </div>
+            )}
             <div className="info-row">
-              <span className="info-label">Official Email:</span>
+              <span className="info-label">Registered Email:</span>
               <span className="info-val">{registered.email}</span>
             </div>
             <div className="info-row">
@@ -1058,38 +1130,38 @@ export default function RegisterPage() {
               ))}
             </div>
 
-            {/* Step 2 · Team Lead & Startup/Innovation Details */}
+            {/* Step 2 · Profile & Registration Details */}
             <div className="section-label">
-              <span>Step 2 · {category === "volunteer" ? "Volunteer Details" : isStudentInnovator ? "Team Lead & Innovation Details" : "Team Lead & Startup Details"}</span>
-              <span className="section-tag">{isStartupOrInnovator ? "All fields compulsory *" : "Required details *"}</span>
+              <span>Step 2 · {isVolunteer ? "Volunteer Details" : isStudentInnovator ? "Team Lead & Innovation Details" : "Team Lead & Startup Details"}</span>
+              <span className="section-tag">All fields compulsory *</span>
             </div>
 
             {/* Form Inputs Grid */}
             <div className="form-grid">
-              {category !== "volunteer" && (
-                <div className="input-group">
-                  <label className="input-label" htmlFor="teamName">
-                    <span>{activeCategory.teamLabel} <span className="input-req">*</span></span>
-                  </label>
-                  <input
-                    id="teamName"
-                    className="input-field"
-                    type="text"
-                    required
-                    placeholder={
-                      isStartupLeader
-                        ? "e.g. AgriSmart Robotics Pvt Ltd"
-                        : "e.g. GIET AI Innovation Lab"
-                    }
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value)}
-                  />
-                </div>
-              )}
+              <div className="input-group">
+                <label className="input-label" htmlFor="teamName">
+                  <span>{isVolunteer ? "Organisation Name" : activeCategory.teamLabel} <span className="input-req">*</span></span>
+                </label>
+                <input
+                  id="teamName"
+                  className="input-field"
+                  type="text"
+                  required
+                  placeholder={
+                    isVolunteer
+                      ? "e.g. GIET University / Silicon University"
+                      : isStartupLeader
+                      ? "e.g. AgriSmart Robotics Pvt Ltd"
+                      : "e.g. GIET AI Innovation Lab"
+                  }
+                  value={teamName}
+                  onChange={(e) => setTeamName(e.target.value)}
+                />
+              </div>
 
               <div className="input-group">
                 <label className="input-label" htmlFor="fullName">
-                  <span>{category === "volunteer" ? "Volunteer Full Name" : "Team Lead Full Name"} <span className="input-req">*</span></span>
+                  <span>{isVolunteer ? "Volunteer Full Name" : "Team Lead Full Name"} <span className="input-req">*</span></span>
                 </label>
                 <input
                   id="fullName"
@@ -1102,16 +1174,51 @@ export default function RegisterPage() {
                 />
               </div>
 
+              {/* Volunteer Registration Number & Roll Number */}
+              {isVolunteer && (
+                <>
+                  <div className="input-group">
+                    <label className="input-label" htmlFor="redgNo">
+                      <span>Registration Number (Redg No) <span className="input-req">*</span></span>
+                    </label>
+                    <input
+                      id="redgNo"
+                      className="input-field"
+                      type="text"
+                      required
+                      placeholder="e.g. 2101298012"
+                      value={redgNo}
+                      onChange={(e) => setRedgNo(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label" htmlFor="rollNo">
+                      <span>Roll Number / Student ID <span className="input-req">*</span></span>
+                    </label>
+                    <input
+                      id="rollNo"
+                      className="input-field"
+                      type="text"
+                      required
+                      placeholder="e.g. 21CSE105"
+                      value={rollNo}
+                      onChange={(e) => setRollNo(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="input-group">
                 <label className="input-label" htmlFor="email">
-                  <span>Official Email Address <span className="input-req">*</span></span>
+                  <span>{isVolunteer ? "Email Address" : "Official Email Address"} <span className="input-req">*</span></span>
                 </label>
                 <input
                   id="email"
                   className="input-field"
                   type="email"
                   required
-                  placeholder="name@company.com"
+                  placeholder={isVolunteer ? "volunteer@college.edu" : "name@company.com"}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -1158,47 +1265,49 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="altMobile">
-                  <span>Alternate Phone Number {isStartupOrInnovator && <span className="input-req">*</span>}</span>
+                  <span>Alternate Phone Number <span className="input-req">*</span></span>
                 </label>
                 <input
                   id="altMobile"
                   className="input-field"
                   type="tel"
-                  required={isStartupOrInnovator}
+                  required
                   placeholder="Secondary / Emergency contact"
                   value={altMobile}
                   onChange={(e) => setAltMobile(e.target.value)}
                 />
               </div>
 
-              <div className="input-group">
-                <label className="input-label" htmlFor="domain">
-                  <span>Domain / Sector <span className="input-req">*</span></span>
-                </label>
-                <select
-                  id="domain"
-                  className="input-field"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  required
-                >
-                  {DOMAINS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!isVolunteer && (
+                <div className="input-group">
+                  <label className="input-label" htmlFor="domain">
+                    <span>Domain / Sector <span className="input-req">*</span></span>
+                  </label>
+                  <select
+                    id="domain"
+                    className="input-field"
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    required
+                  >
+                    {DOMAINS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="input-group">
                 <label className="input-label" htmlFor="city">
-                  <span>City {isStartupOrInnovator && <span className="input-req">*</span>}</span>
+                  <span>City <span className="input-req">*</span></span>
                 </label>
                 <input
                   id="city"
                   className="input-field"
                   type="text"
-                  required={isStartupOrInnovator}
+                  required
                   placeholder="e.g. Bhubaneswar / Gunupur"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
@@ -1207,13 +1316,13 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="state">
-                  <span>State {isStartupOrInnovator && <span className="input-req">*</span>}</span>
+                  <span>State <span className="input-req">*</span></span>
                 </label>
                 <input
                   id="state"
                   className="input-field"
                   type="text"
-                  required={isStartupOrInnovator}
+                  required
                   placeholder="e.g. Odisha"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
@@ -1222,84 +1331,86 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="country">
-                  <span>Country {isStartupOrInnovator && <span className="input-req">*</span>}</span>
+                  <span>Country <span className="input-req">*</span></span>
                 </label>
                 <input
                   id="country"
                   className="input-field"
                   type="text"
-                  required={isStartupOrInnovator}
+                  required
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                 />
               </div>
 
-              <div className="input-group form-full">
-                <label className="input-label" htmlFor="linkedinUrl">
-                  <span>LinkedIn Profile / URL {isStartupOrInnovator && <span className="input-req">*</span>}</span>
-                </label>
-                <input
-                  id="linkedinUrl"
-                  className="input-field"
-                  type="url"
-                  required={isStartupOrInnovator}
-                  placeholder="https://linkedin.com/in/username"
-                  value={linkedinUrl}
-                  onChange={(e) => setLinkedinUrl(e.target.value)}
-                />
-              </div>
+              {!isVolunteer && (
+                <div className="input-group form-full">
+                  <label className="input-label" htmlFor="linkedinUrl">
+                    <span>LinkedIn Profile / URL <span className="input-req">*</span></span>
+                  </label>
+                  <input
+                    id="linkedinUrl"
+                    className="input-field"
+                    type="url"
+                    required
+                    placeholder="https://linkedin.com/in/username"
+                    value={linkedinUrl}
+                    onChange={(e) => setLinkedinUrl(e.target.value)}
+                  />
+                </div>
+              )}
 
-              {/* Team Lead Photograph (Right below LinkedIn URL) */}
-              {isStartupOrInnovator && (
-                <div className="form-full" style={{ marginTop: "4px" }}>
-                  <div className="photo-uploader">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      ref={leadFileInputRef}
-                      style={{ display: "none" }}
-                      onChange={handleLeadPhotoChange}
-                    />
-                    <div
-                      className="photo-avatar-box"
-                      onClick={() => leadFileInputRef.current?.click()}
-                      style={{ cursor: "pointer" }}
-                    >
-                      {leadPhoto ? (
-                        <img src={leadPhoto} alt="Leader Preview" className="photo-avatar-img" />
-                      ) : (
-                        <span className="photo-avatar-placeholder">📷</span>
-                      )}
+              {/* Photograph Upload Card */}
+              <div className="form-full" style={{ marginTop: "4px" }}>
+                <div className="photo-uploader">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={leadFileInputRef}
+                    style={{ display: "none" }}
+                    onChange={handleLeadPhotoChange}
+                  />
+                  <div
+                    className="photo-avatar-box"
+                    onClick={() => leadFileInputRef.current?.click()}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {leadPhoto ? (
+                      <img src={leadPhoto} alt="Photo Preview" className="photo-avatar-img" />
+                    ) : (
+                      <span className="photo-avatar-placeholder">📷</span>
+                    )}
+                  </div>
+                  <div className="photo-upload-meta">
+                    <div className="photo-upload-title">
+                      {isVolunteer ? "Volunteer Photograph" : "Team Lead Photograph"} <span className="input-req">*</span>
                     </div>
-                    <div className="photo-upload-meta">
-                      <div className="photo-upload-title">
-                        Team Lead Photograph <span className="input-req">*</span>
-                      </div>
-                      <div className="photo-upload-sub">
-                        Upload a clear headshot photo (JPG, PNG, WEBP). Compulsory for summit badge & profile.
-                      </div>
-                      <div className="photo-btn-row">
+                    <div className="photo-upload-sub">
+                      {isVolunteer
+                        ? "Upload a clear headshot / passport size photograph (JPG, PNG, WEBP). Compulsory for volunteer ID badge & event security access."
+                        : "Upload a clear headshot photo (JPG, PNG, WEBP). Compulsory for summit badge & profile."}
+                    </div>
+                    <div className="photo-btn-row">
+                      <button
+                        type="button"
+                        className="btn-photo-pick"
+                        onClick={() => leadFileInputRef.current?.click()}
+                      >
+                        {leadPhoto ? "Change Photo" : "Upload Photo"}
+                      </button>
+                      {leadPhoto && (
                         <button
                           type="button"
-                          className="btn-photo-pick"
-                          onClick={() => leadFileInputRef.current?.click()}
+                          className="btn-photo-remove"
+                          onClick={() => setLeadPhoto("")}
                         >
-                          {leadPhoto ? "Change Photo" : "Upload Photo"}
+                          Remove
                         </button>
-                        {leadPhoto && (
-                          <button
-                            type="button"
-                            className="btn-photo-remove"
-                            onClick={() => setLeadPhoto("")}
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* 3. Team Members Details (compulsory for startup leader & student innovator, max 5) */}
