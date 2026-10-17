@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { PublicEdition } from "@sj/contracts";
-import { formatDateRange, formatIst } from "@sj/client";
+import { formatDateRange } from "@sj/client";
 
 export const dynamic = "force-dynamic";
 
@@ -12,17 +12,6 @@ async function loadEditions(): Promise<PublicEdition[] | null> {
   } catch {
     return null;
   }
-}
-
-function RegistrationLine({ e }: { e: PublicEdition }) {
-  if (!e.registration.open) return <p className="muted">Registration for {e.year} is closed.</p>;
-  if (!e.registration.closesAt) return <p>Registration is open. The deadline will be announced.</p>;
-  return (
-    <p>
-      Open until <strong>{formatIst(e.registration.closesAt)} IST</strong>
-      {!e.registration.closesAtConfirmed && <span className="muted small"> (time to be confirmed)</span>}
-    </p>
-  );
 }
 
 export default async function Home() {
@@ -48,23 +37,7 @@ export default async function Home() {
           <Link href="/signin" className="btn">Sign In to Dashboard</Link>
         </div>
       </section>
-
-      <h2 style={{ marginTop: 40 }}>Registration</h2>
-      {editions ? (
-        <div className="grid">
-          {editions.map((e) => (
-            <div className="card" key={e.year}>
-              <h3>{e.name}</h3>
-              <RegistrationLine e={e} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="notice notice-warn">Registration details are temporarily unavailable. Please try again shortly.</p>
-      )}
-      <p className="muted small" style={{ marginTop: 16 }}>
-        You can apply for 2026, 2027 or both. Each year has its own application and its own result. The programme is tentative and may change.
-      </p>
     </>
   );
 }
+
