@@ -2,25 +2,21 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CONSOLE_RETURN_PATHS, safeReturnPath } from "@sj/contracts";
-import { authMode, startSignIn, verifyCode } from "@/lib/session";
-
-const DEFAULT_ADMIN_PASSWORD = "Udbhav@2026";
-
-const ADMIN_ACCOUNTS = [
-  { email: "sarangeeamartya@gmail.com", name: "Amartya Sarangee" },
-  { email: "arushkumar450@gmail.com", name: "Arush Kumar" },
-  { email: "akshatrajpati@gmail.com", name: "Akshat Rajpati" },
-] as const;
+import { startSignIn, verifyCode } from "@/lib/session";
 
 function LoginForm() {
   const router = useRouter();
-  const next = safeReturnPath(useSearchParams().get("next"), CONSOLE_RETURN_PATHS, "/");
-  const [email, setEmail] = useState("sarangeeamartya@gmail.com");
-  const [password, setPassword] = useState(DEFAULT_ADMIN_PASSWORD);
+  const searchParams = useSearchParams();
+  const next = safeReturnPath(searchParams.get("next"), CONSOLE_RETURN_PATHS, "/");
+  const isTimeout = searchParams.get("timeout") === "1";
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [stage, setStage] = useState<"email" | "code">("email");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [otpSentMsg, setOtpSentMsg] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,14 +24,25 @@ function LoginForm() {
     setLoading(true);
     try {
       if (stage === "email") {
+        // If password is provided, attempt direct verification first
+        if (password.trim()) {
+          try {
+            await verifyCode(email.trim(), "000000", password.trim());
+            router.push(next);
+            return;
+          } catch {
+            // If direct password check fails, request OTP
+          }
+        }
         const res = await startSignIn(email.trim());
         if (res === "signed_in") {
           router.push(next);
         } else {
           setStage("code");
+          setOtpSentMsg(`A 6-digit OTP code has been dispatched via Nodemailer to ${email.trim()}.`);
         }
       } else {
-        await verifyCode(email.trim(), code.trim());
+        await verifyCode(email.trim(), code.trim(), password.trim() || undefined);
         router.push(next);
       }
     } catch (err) {
@@ -45,10 +52,22 @@ function LoginForm() {
     }
   }
 
-  function selectAdmin(adminEmail: string) {
-    setEmail(adminEmail);
-    setPassword(DEFAULT_ADMIN_PASSWORD);
+  async function requestOtpCode() {
+    if (!email.trim()) {
+      setError("Please enter your work email first.");
+      return;
+    }
     setError(null);
+    setLoading(true);
+    try {
+      await startSignIn(email.trim());
+      setStage("code");
+      setOtpSentMsg(`A 6-digit OTP code has been dispatched via Nodemailer to ${email.trim()}.`);
+    } catch (err) {
+      setError((err as Error).message || "Failed to dispatch verification code.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -64,7 +83,7 @@ function LoginForm() {
         .login-card {
           width: 100%;
           max-width: 960px;
-          min-height: 560px;
+          min-height: 540px;
           background: #ffffff;
           border-radius: 24px;
           overflow: hidden;
@@ -136,7 +155,7 @@ function LoginForm() {
           font-size: 1.5rem;
           font-weight: 800;
           color: #0f172a;
-          margin-bottom: 28px;
+          margin-bottom: 24px;
           letter-spacing: -0.02em;
         }
         .welcome-title {
@@ -159,7 +178,8 @@ function LoginForm() {
           margin-bottom: 18px;
         }
         .input-label {
-          display: block;
+          display: flex;
+          justify-content: space-between;
           font-size: 0.825rem;
           font-weight: 600;
           color: #334155;
@@ -213,47 +233,33 @@ function LoginForm() {
           font-size: 0.85rem;
           margin-bottom: 18px;
         }
-        .admin-chips {
-          margin-top: 24px;
-          padding-top: 18px;
-          border-top: 1px solid #f1f5f9;
-        }
-        .admin-chips-title {
-          font-size: 0.75rem;
-          color: #64748b;
-          text-transform: uppercase;
-          font-weight: 700;
-          letter-spacing: 0.05em;
-          margin-bottom: 8px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .chip-list {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .chip-btn {
-          font-size: 0.775rem;
-          padding: 6px 12px;
-          background: #f1f5f9;
-          border: 1.5px solid #e2e8f0;
+        .success-badge {
+          background: #f0fdf4;
+          color: #15803d;
+          border: 1px solid #bbf7d0;
+          padding: 10px 14px;
           border-radius: 8px;
-          color: #334155;
-          font-weight: 600;
+          font-size: 0.85rem;
+          margin-bottom: 18px;
+        }
+        .warn-badge {
+          background: #fffbeb;
+          color: #b45309;
+          border: 1px solid #fde68a;
+          padding: 10px 14px;
+          border-radius: 8px;
+          font-size: 0.85rem;
+          margin-bottom: 18px;
+        }
+        .sublink {
+          font-size: 0.8rem;
+          color: #2563eb;
+          text-decoration: none;
+          font-weight: 500;
           cursor: pointer;
-          transition: all 0.15s ease;
         }
-        .chip-btn:hover {
-          background: #e2e8f0;
-          color: #0f172a;
-          border-color: #cbd5e1;
-        }
-        .chip-btn.active {
-          background: #eff6ff;
-          border-color: #3b82f6;
-          color: #1d4ed8;
+        .sublink:hover {
+          text-decoration: underline;
         }
         @media (max-width: 768px) {
           .login-card {
@@ -275,7 +281,6 @@ function LoginForm() {
       <div className="login-card">
         {/* Left Side: Vibrant Blue Gradient Banner */}
         <div className="login-banner">
-          {/* Subtle Decorative Curves SVG */}
           <svg className="banner-decor" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M20 180 C 60 100, 140 100, 180 20" stroke="white" strokeWidth="2.5" />
             <path d="M40 190 C 80 120, 150 120, 190 40" stroke="white" strokeWidth="2.5" />
@@ -283,7 +288,6 @@ function LoginForm() {
             <path d="M10 160 C 50 80, 130 80, 170 10" stroke="white" strokeWidth="2" strokeDasharray="6 6" />
           </svg>
 
-          {/* White Geometric Star / Asterisk */}
           <div className="banner-star" aria-hidden="true">
             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="2" x2="12" y2="22" />
@@ -317,19 +321,36 @@ function LoginForm() {
             Restricted staff portal for <strong>Administrator</strong> and <strong>Customer Support</strong>.
           </p>
 
+          {isTimeout && (
+            <div className="warn-badge" role="alert">
+              ⏱ Your session expired after 10 minutes of inactivity. Please log in again.
+            </div>
+          )}
+
           {error && <div className="error-badge" role="alert">{error}</div>}
+          {otpSentMsg && <div className="success-badge" role="status">{otpSentMsg}</div>}
 
           <form onSubmit={submit}>
             {stage === "email" ? (
               <>
                 <div className="input-group">
-                  <label className="input-label" htmlFor="work-email">Work Email</label>
+                  <label className="input-label" htmlFor="work-email">
+                    <span>Work Email</span>
+                    <button
+                      type="button"
+                      className="sublink"
+                      onClick={requestOtpCode}
+                      style={{ background: "none", border: "none", padding: 0 }}
+                    >
+                      Send OTP to Email
+                    </button>
+                  </label>
                   <input
                     id="work-email"
                     type="email"
                     required
                     autoFocus
-                    placeholder="admin@domain.com"
+                    placeholder="Enter work email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="styled-input"
@@ -337,12 +358,13 @@ function LoginForm() {
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label" htmlFor="work-password">Password</label>
+                  <label className="input-label" htmlFor="work-password">
+                    <span>Password</span>
+                  </label>
                   <input
                     id="work-password"
                     type="password"
-                    required
-                    placeholder="••••••••••••"
+                    placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="styled-input"
@@ -351,24 +373,34 @@ function LoginForm() {
               </>
             ) : (
               <div className="input-group">
-                <label className="input-label" htmlFor="otp-code">One-time Security Code</label>
+                <label className="input-label" htmlFor="otp-code">
+                  <span>One-time Security Code (OTP)</span>
+                  <button
+                    type="button"
+                    className="sublink"
+                    onClick={requestOtpCode}
+                    style={{ background: "none", border: "none", padding: 0 }}
+                  >
+                    Resend code
+                  </button>
+                </label>
                 <input
                   id="otp-code"
                   type="text"
                   inputMode="numeric"
                   required
                   autoFocus
-                  placeholder="Enter 6-digit code"
+                  placeholder="Enter 6-digit code sent to your email"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   className="styled-input"
                 />
-                <p style={{ margin: "6px 0 0", fontSize: "0.78rem", color: "#64748b" }}>
-                  Code sent to <strong>{email}</strong>.{" "}
+                <p style={{ margin: "8px 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+                  Code dispatched to <strong>{email}</strong> via Nodemailer.{" "}
                   <a
                     href="#change"
-                    onClick={(e) => { e.preventDefault(); setStage("email"); setError(null); }}
-                    style={{ color: "#2563eb", textDecoration: "none" }}
+                    onClick={(e) => { e.preventDefault(); setStage("email"); setError(null); setOtpSentMsg(null); }}
+                    className="sublink"
                   >
                     Change email
                   </a>
@@ -380,26 +412,6 @@ function LoginForm() {
               {loading ? "Authenticating…" : stage === "email" ? "Login Now" : "Verify & Login"}
             </button>
           </form>
-
-          {/* Dedicated Quick Login Chips for the 3 Admin Emails */}
-          <div className="admin-chips">
-            <div className="admin-chips-title">
-              <span>Admin Accounts</span>
-              <span style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "none", fontWeight: 500 }}>Default: {DEFAULT_ADMIN_PASSWORD}</span>
-            </div>
-            <div className="chip-list">
-              {ADMIN_ACCOUNTS.map((adm) => (
-                <button
-                  key={adm.email}
-                  type="button"
-                  className={`chip-btn ${email === adm.email ? "active" : ""}`}
-                  onClick={() => selectAdmin(adm.email)}
-                >
-                  {adm.name}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

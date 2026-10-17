@@ -30,6 +30,10 @@ import type {
   RegistrationRequest,
   RegistrationResponse,
   ReleaseResponse,
+  SendOtpRequest,
+  SendOtpResponse,
+  VerifyOtpRequest,
+  VerifyOtpResponse,
   SignInIdentifier,
   EvaluationDetail,
   EvaluationReview,
@@ -142,6 +146,8 @@ export function createApi({ baseUrl, getToken }: ApiOptions) {
     /** Development sign-in only (refused in production): by email or by mobile number. */
     devSession: (id: string | SignInIdentifier, mfa = false) =>
       req<{ token: string }>("POST", "/v1/dev/session", { ...(typeof id === "string" ? { email: id } : id), mfa }),
+    sendOtp: (body: SendOtpRequest) => req<SendOtpResponse>("POST", "/v1/auth/otp/send", body),
+    verifyOtp: (body: VerifyOtpRequest) => req<VerifyOtpResponse>("POST", "/v1/auth/otp/verify", body),
     register: (body: RegistrationRequest) => req<RegistrationResponse>("POST", "/v1/me/registrations", body),
     signup: (body: PublicSignUpRequest) => req<PublicSignUpResponse>("POST", "/v1/public/signup", body),
     myApplications: () => req<MyApplicationsResponse>("GET", "/v1/me/applications"),

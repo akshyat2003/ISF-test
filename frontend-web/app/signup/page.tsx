@@ -1,16 +1,15 @@
 "use client";
-import Link from "next/link";
-import Image from "next/image";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { normaliseMobile, type SignupRole } from "@sj/contracts";
-import { api, authMode, startSignIn, verifyCode } from "@/lib/session";
+import { api, startSignIn, verifyCode } from "@/lib/session";
 
-const ROLES: { id: SignupRole; title: string; desc: string; icon: string }[] = [
-  { id: "startup_team_leader", title: "Startup Team Leader", desc: "Founders & leaders applying or leading their startup.", icon: "🚀" },
-  { id: "startup_team_member", title: "Startup Team Member", desc: "Co-founders & team members participating with a startup.", icon: "💼" },
-  { id: "volunteer", title: "Volunteer", desc: "Student & community volunteers helping coordinate the event.", icon: "🤝" },
-  { id: "management", title: "Management Team", desc: "Core organizing committee & event operations.", icon: "🏛️" },
+const ROLES: { id: SignupRole; title: string; desc: string }[] = [
+  { id: "startup_team_leader", title: "Startup Team Leader", desc: "Founders & leaders applying or leading their startup" },
+  { id: "startup_team_member", title: "Startup Team Member", desc: "Co-founders & team members participating with a startup" },
+  { id: "volunteer", title: "Volunteer", desc: "Volunteers helping coordinate the event" },
+  { id: "management", title: "Management Team", desc: "Core organizing committee & operations" },
 ];
 
 export default function SignUpPage() {
@@ -20,13 +19,13 @@ export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [startupName, setStartupName] = useState("");
-  const [edition, setEdition] = useState("2026");
+  const [edition] = useState("2026");
 
-  // OTP stage after signup
-  const [stage, setStage] = useState<"signup" | "otp">("signup");
-  const [otpCode, setOtpCode] = useState("");
+  const [step, setStep] = useState<"form" | "otp">("form");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +43,6 @@ export default function SignUpPage() {
         normMobile = parsed;
       }
 
-      // Call public signup endpoint
       await api.signup({
         fullName: fullName.trim(),
         email: normEmail,
@@ -54,15 +52,12 @@ export default function SignUpPage() {
         startupName: (role === "startup_team_leader" || role === "startup_team_member") ? startupName.trim() : undefined,
       });
 
-      // Initiate sign-in immediately
-      const r = await startSignIn(normEmail);
-      if (r === "signed_in") {
-        router.push("/status");
-      } else {
-        setStage("otp");
-      }
+      // Dispatch real Nodemailer OTP
+      await startSignIn(normEmail);
+      setStep("otp");
+      setStatusMsg(`A verification code was dispatched via Nodemailer to ${normEmail}`);
     } catch (err) {
-      setError((err as Error).message || "Sign-up failed. Please try again.");
+      setError((err as Error).message || "Sign-up failed. Please check details.");
     } finally {
       setBusy(false);
     }
@@ -72,174 +67,420 @@ export default function SignUpPage() {
     e.preventDefault();
     setError(null);
     setBusy(true);
+
     try {
-      await verifyCode(email.trim().toLowerCase(), otpCode.trim());
+      await verifyCode(email.trim().toLowerCase(), code.trim());
       router.push("/status");
     } catch (err) {
-      setError((err as Error).message || "Verification failed. Check the code and try again.");
+      setError((err as Error).message || "Invalid or expired verification code.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "16px 0" }}>
-      <div style={{ textAlign: "center", marginBottom: 24 }}>
-        <Image
-          src="/logos/udbhav.png"
-          alt="Udbhav"
-          width={72}
-          height={72}
-          style={{ borderRadius: 12, objectFit: "contain", marginBottom: 12 }}
-        />
-        <h1 style={{ margin: "0 0 6px" }}>Join Udbhav</h1>
-        <p className="muted" style={{ margin: 0 }}>
-          Startup Jathara @ Dandakaranya · 18–20 December 2026
-        </p>
+    <div className="auth-viewport">
+      <style jsx>{`
+        .auth-viewport {
+          min-height: calc(100vh - 120px);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          position: relative;
+          padding: 32px 16px 24px;
+          overflow: hidden;
+        }
+        .glass-bg-canvas {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          z-index: 0;
+          overflow: hidden;
+        }
+        .shape-disk {
+          position: absolute;
+          width: 260px;
+          height: 140px;
+          border-radius: 50%;
+          border: 10px solid rgba(249, 115, 22, 0.45);
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, rgba(254, 215, 170, 0.25) 100%);
+          transform: rotate(-25deg);
+          top: 10%;
+          left: 10%;
+        }
+        .shape-rect {
+          position: absolute;
+          width: 170px;
+          height: 240px;
+          border-radius: 12px;
+          border: 4px solid rgba(56, 189, 248, 0.5);
+          background: rgba(224, 242, 254, 0.45);
+          backdrop-filter: blur(8px);
+          bottom: 10%;
+          left: 18%;
+        }
+        .shape-loop {
+          position: absolute;
+          width: 220px;
+          height: 380px;
+          border-radius: 100px;
+          border: 14px solid rgba(168, 85, 247, 0.35);
+          background: rgba(243, 232, 255, 0.2);
+          backdrop-filter: blur(8px);
+          transform: rotate(20deg);
+          top: 5%;
+          right: 15%;
+        }
+        .shape-circle {
+          position: absolute;
+          width: 200px;
+          height: 200px;
+          border-radius: 50%;
+          border: 8px solid rgba(34, 197, 94, 0.45);
+          background: rgba(220, 252, 231, 0.3);
+          bottom: 12%;
+          right: 8%;
+        }
+
+        .auth-card {
+          position: relative;
+          z-index: 10;
+          width: 100%;
+          max-width: 480px;
+          background: #ffffff;
+          border-radius: 20px;
+          padding: 40px 38px;
+          box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
+        }
+        .card-header {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          margin-bottom: 22px;
+        }
+        .back-btn {
+          position: absolute;
+          left: -8px;
+          top: 0;
+          background: none;
+          border: none;
+          font-size: 1.25rem;
+          color: #334155;
+          cursor: pointer;
+          padding: 4px 8px;
+          border-radius: 6px;
+        }
+        .back-btn:hover {
+          background: #f1f5f9;
+        }
+        .brand-logo-wrap {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .ms-tiles {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 2.5px;
+          width: 20px;
+          height: 20px;
+        }
+        .tile-red { background: #f25022; }
+        .tile-green { background: #7fba00; }
+        .tile-blue { background: #00a4ef; }
+        .tile-yellow { background: #ffb900; }
+        .brand-title {
+          font-size: 1.35rem;
+          font-weight: 700;
+          color: #0f172a;
+          letter-spacing: -0.02em;
+        }
+
+        .identity-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
+          border-radius: 20px;
+          padding: 4px 14px;
+          font-size: 0.825rem;
+          color: #334155;
+          margin: 0 auto 18px;
+        }
+
+        .card-heading {
+          font-size: 1.55rem;
+          font-weight: 700;
+          color: #0f172a;
+          margin: 0 0 6px;
+          letter-spacing: -0.02em;
+        }
+        .card-subtext {
+          font-size: 0.85rem;
+          color: #64748b;
+          margin: 0 0 20px;
+        }
+
+        .form-group {
+          margin-bottom: 14px;
+        }
+        .input-label {
+          display: block;
+          font-size: 0.825rem;
+          font-weight: 600;
+          color: #334155;
+          margin-bottom: 5px;
+        }
+        .styled-input, .styled-select {
+          width: 100%;
+          padding: 11px 14px;
+          font-size: 0.925rem;
+          color: #0f172a;
+          background: #ffffff;
+          border: 1.5px solid #cbd5e1;
+          border-radius: 8px;
+          outline: none;
+          box-sizing: border-box;
+          transition: all 0.2s;
+        }
+        .styled-input:focus, .styled-select:focus {
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        .btn-next {
+          width: 100%;
+          padding: 13px 20px;
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: #ffffff;
+          background: #334155;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.18s;
+          margin-top: 8px;
+        }
+        .btn-next:hover:not(:disabled) {
+          background: #1e293b;
+        }
+        .btn-next:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .action-links {
+          margin: 18px 0 0;
+          font-size: 0.825rem;
+          color: #64748b;
+          text-align: center;
+        }
+        .action-link {
+          color: #2563eb;
+          text-decoration: none;
+        }
+        .action-link:hover {
+          text-decoration: underline;
+        }
+
+        .error-alert {
+          background: #fef2f2;
+          color: #b91c1c;
+          border: 1px solid #fecaca;
+          padding: 10px 14px;
+          border-radius: 8px;
+          font-size: 0.85rem;
+          margin-bottom: 16px;
+        }
+        .status-alert {
+          background: #f0fdf4;
+          color: #15803d;
+          border: 1px solid #bbf7d0;
+          padding: 10px 14px;
+          border-radius: 8px;
+          font-size: 0.85rem;
+          margin-bottom: 16px;
+        }
+
+        .bottom-links {
+          position: relative;
+          z-index: 10;
+          display: flex;
+          gap: 16px;
+          margin-top: 24px;
+          font-size: 0.775rem;
+          color: #64748b;
+        }
+        .bottom-links a {
+          color: #64748b;
+          text-decoration: none;
+        }
+        .bottom-links a:hover {
+          text-decoration: underline;
+        }
+
+        @media (max-width: 480px) {
+          .auth-card {
+            padding: 30px 20px;
+          }
+        }
+      `}</style>
+
+      <div className="glass-bg-canvas" aria-hidden="true">
+        <div className="shape-disk" />
+        <div className="shape-rect" />
+        <div className="shape-loop" />
+        <div className="shape-circle" />
       </div>
 
-      {stage === "signup" ? (
-        <form onSubmit={handleSignUp} className="card" style={{ display: "grid", gap: 16 }}>
-          <h2 style={{ margin: "0 0 4px" }}>Create your account</h2>
-          <p className="muted small" style={{ margin: "0 0 12px" }}>
-            Sign up as a Startup Leader, Startup Member, Volunteer, or Management Team member.
-          </p>
+      <div className="auth-card">
+        <div className="card-header">
+          {step === "otp" && (
+            <button
+              type="button"
+              className="back-btn"
+              onClick={() => { setStep("form"); setError(null); }}
+              aria-label="Back"
+            >
+              ←
+            </button>
+          )}
 
-          <label>Select your role
-            <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-              {ROLES.map((r) => (
-                <label
-                  key={r.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 12,
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: `1.5px solid ${role === r.id ? "var(--accent)" : "var(--line)"}`,
-                    backgroundColor: role === r.id ? "var(--accent-soft)" : "transparent",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="role"
-                    value={r.id}
-                    checked={role === r.id}
-                    onChange={() => setRole(r.id)}
-                    style={{ marginTop: 3 }}
-                  />
-                  <div>
-                    <span style={{ fontWeight: 700, color: "var(--ink)" }}>{r.icon} {r.title}</span>
-                    <p className="muted small" style={{ margin: "2px 0 0" }}>{r.desc}</p>
-                  </div>
-                </label>
-              ))}
+          <div className="brand-logo-wrap">
+            <div className="ms-tiles">
+              <span className="tile-red" />
+              <span className="tile-green" />
+              <span className="tile-blue" />
+              <span className="tile-yellow" />
             </div>
-          </label>
+            <span className="brand-title">Udbhav</span>
+          </div>
+        </div>
 
-          <label>Full name *
-            <input
-              type="text"
-              required
-              placeholder="e.g. Rahul Sharma"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-          </label>
+        {error && <div className="error-alert" role="alert">{error}</div>}
+        {statusMsg && <div className="status-alert" role="status">{statusMsg}</div>}
 
-          {(role === "startup_team_leader" || role === "startup_team_member") && (
-            <label>Startup / Company name *
+        {step === "form" ? (
+          <form onSubmit={handleSignUp}>
+            <h1 className="card-heading">Create account</h1>
+            <p className="card-subtext">Register for Udbhav — Startup Jathara</p>
+
+            <div className="form-group">
+              <label className="input-label" htmlFor="role-select">Select your participation role</label>
+              <select
+                id="role-select"
+                value={role}
+                onChange={(e) => setRole(e.target.value as SignupRole)}
+                className="styled-select"
+              >
+                {ROLES.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.title} — {r.desc}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="input-label" htmlFor="full-name">Full Name</label>
               <input
+                id="full-name"
                 type="text"
                 required
-                placeholder="e.g. GreenTech Innovations"
-                value={startupName}
-                onChange={(e) => setStartupName(e.target.value)}
+                placeholder="Enter your full name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="styled-input"
               />
-            </label>
-          )}
+            </div>
 
-          <div className="two">
-            <label>Email address *
+            <div className="form-group">
+              <label className="input-label" htmlFor="user-email">Email Address</label>
               <input
+                id="user-email"
                 type="email"
                 required
-                placeholder="you@example.com"
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="styled-input"
               />
-            </label>
-            <label>Mobile number (optional)
+            </div>
+
+            {(role === "startup_team_leader" || role === "startup_team_member") && (
+              <div className="form-group">
+                <label className="input-label" htmlFor="startup-name">Startup / Venture Name</label>
+                <input
+                  id="startup-name"
+                  type="text"
+                  required
+                  placeholder="e.g. AgriCool Technologies"
+                  value={startupName}
+                  onChange={(e) => setStartupName(e.target.value)}
+                  className="styled-input"
+                />
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="input-label" htmlFor="user-mobile">Mobile Number (Optional)</label>
               <input
+                id="user-mobile"
                 type="tel"
-                placeholder="10-digit number"
+                placeholder="10-digit mobile number"
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
+                className="styled-input"
               />
-            </label>
-          </div>
+            </div>
 
-          <label>Event Edition
-            <select value={edition} onChange={(e) => setEdition(e.target.value)}>
-              <option value="2026">Startup Jathara 2026</option>
-              <option value="2027">Startup Jathara 2027</option>
-            </select>
-          </label>
+            <button type="submit" className="btn-next" disabled={busy}>
+              {busy ? "Registering…" : "Create account"}
+            </button>
 
-          {error && <p className="notice notice-error" role="alert">{error}</p>}
-          {authMode === "dev" && (
-            <p className="notice notice-warn small">
-              Development mode: You will be signed in instantly without an OTP code.
-            </p>
-          )}
+            <div className="action-links">
+              Already have an account? <Link href="/signin" className="action-link">Sign in</Link>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOtp}>
+            <div style={{ textAlign: "center" }}>
+              <div className="identity-pill">
+                <span>{email}</span>
+              </div>
+            </div>
 
-          <button type="submit" className="btn btn-primary" disabled={busy} style={{ width: "100%", padding: 12 }}>
-            {busy ? "Creating account..." : "Sign up and continue"}
-          </button>
+            <h1 className="card-heading">Enter verification code</h1>
+            <p className="card-subtext">Dispatched via Nodemailer to {email}</p>
 
-          <p className="small muted" style={{ textAlign: "center", margin: "8px 0 0" }}>
-            Already registered or received an invitation?{" "}
-            <Link href="/signin" style={{ fontWeight: 600, color: "var(--accent)" }}>
-              Sign in here
-            </Link>
-          </p>
-        </form>
-      ) : (
-        <form onSubmit={handleVerifyOtp} className="card" style={{ display: "grid", gap: 16 }}>
-          <h2 style={{ margin: "0 0 4px" }}>Verify your email</h2>
-          <p className="muted">
-            We sent a one-time verification code to <strong>{email}</strong>. Enter it below to complete sign-in.
-          </p>
+            <div style={{ marginBottom: 14 }}>
+              <input
+                type="text"
+                inputMode="numeric"
+                required
+                autoFocus
+                placeholder="Enter 6-digit code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="styled-input"
+              />
+            </div>
 
-          <label>One-time code
-            <input
-              type="text"
-              inputMode="numeric"
-              required
-              placeholder="e.g. 123456"
-              value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value)}
-              autoFocus
-            />
-          </label>
+            <button type="submit" className="btn-next" disabled={busy}>
+              {busy ? "Activating account…" : "Verify & Activate"}
+            </button>
+          </form>
+        )}
+      </div>
 
-          {error && <p className="notice notice-error" role="alert">{error}</p>}
-
-          <button type="submit" className="btn btn-primary" disabled={busy || otpCode.trim().length < 6}>
-            {busy ? "Verifying..." : "Verify & Sign in"}
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={() => setStage("signup")}
-            style={{ marginTop: 4 }}
-          >
-            ← Back to sign up details
-          </button>
-        </form>
-      )}
+      <div className="bottom-links">
+        <Link href="/privacy">Help</Link>
+        <Link href="/privacy">Terms of use</Link>
+        <Link href="/privacy">Privacy and cookies</Link>
+      </div>
     </div>
   );
 }

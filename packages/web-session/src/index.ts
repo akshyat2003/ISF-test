@@ -1,7 +1,6 @@
 // Browser sign-in shared by the website and the console.
 // AUTH_MODE=dev: API-issued development tokens (local only; the API refuses this mode in production).
-// AUTH_MODE=supabase: Supabase Auth one-time codes by email or SMS (channels per environment, decision TBD-12),
-// plus TOTP multi-factor authentication for staff roles (FR-IAM-11).
+// AUTH_MODE=supabase: Supabase Auth or Nodemailer one-time codes by email or SMS.
 import { useSyncExternalStore } from "react";
 import { createApi } from "@sj/client";
 import type { SignInIdentifier, SignInMethod } from "@sj/contracts";
@@ -16,6 +15,8 @@ export type SessionConfig = {
   storageKey: string;
   /** One-time-code channels this interface offers (see parseSignInMethods). */
   signInMethods?: SignInMethod[];
+  /** Session inactivity timeout in milliseconds (defaults to 10 minutes). */
+  inactivityTimeoutMs?: number;
 };
 
 export type MfaStatus = { level: "aal1" | "aal2"; factorId: string | null };
@@ -33,44 +34,79 @@ export function createSession(cfg: SessionConfig) {
 
   async function getToken(): Promise<string | null> {
     if (typeof window === "undefined") return null;
-    if (cfg.authMode === "dev") return sessionStorage.getItem(cfg.storageKey);
-    const { data } = await sb().auth.getSession();
-    return data.session?.access_token ?? null;
+    const devTok = sessionStorage.getItem(cfg.storageKey);
+    if (devTok) return devTok;
+    if (cfg.authMode === "supabase" && cfg.supabaseUrl && cfg.supabaseAnonKey) {
+      const { data } = await sb().auth.getSession();
+      return data.session?.access_token ?? null;
+    }
+    return null;
   }
 
   const api = createApi({ baseUrl: cfg.apiUrl, getToken });
 
-  function storeDevToken(token: string) {
+  function storeSessionToken(token: string) {
     sessionStorage.setItem(cfg.storageKey, token);
     changed(token);
   }
 
-  /** Dev: signs in immediately. Supabase: sends a one-time code by email or SMS and returns "code_sent". */
+  /**
+   * Sends a one-time verification code via Nodemailer backend API.
+   * If mobile number is provided, dispatches via SMS.
+   */
   async function startSignIn(id: string | SignInIdentifier, opts: { mfa?: boolean } = {}): Promise<"signed_in" | "code_sent"> {
     const who = asIdentifier(id);
+    if ("email" in who) {
+      if (!who.email) throw new Error("Email is required");
+      try {
+        await api.sendOtp({ email: who.email, purpose: "login" });
+        return "code_sent";
+      } catch (err) {
+        if (cfg.authMode === "dev") {
+          storeSessionToken((await api.devSession(who, opts.mfa)).token);
+          return "signed_in";
+        }
+        throw err;
+      }
+    }
     if (cfg.authMode === "dev") {
-      storeDevToken((await api.devSession(who, opts.mfa)).token);
+      storeSessionToken((await api.devSession(who, opts.mfa)).token);
       return "signed_in";
     }
-    const { error } = "email" in who
-      ? await sb().auth.signInWithOtp({ email: who.email, options: { shouldCreateUser: true } })
-      : await sb().auth.signInWithOtp({ phone: who.phone, options: { shouldCreateUser: true } });
+    const { error } = await sb().auth.signInWithOtp({ phone: who.phone, options: { shouldCreateUser: true } });
     if (error) throw error;
     return "code_sent";
   }
 
-  async function verifyCode(id: string | SignInIdentifier, code: string): Promise<void> {
+  async function verifyCode(id: string | SignInIdentifier, code: string, password?: string): Promise<void> {
     const who = asIdentifier(id);
-    const { data, error } = "email" in who
-      ? await sb().auth.verifyOtp({ email: who.email, token: code, type: "email" })
-      : await sb().auth.verifyOtp({ phone: who.phone, token: code, type: "sms" });
+    if ("email" in who) {
+      if (!who.email) throw new Error("Email is required");
+      try {
+        const res = await api.verifyOtp({ email: who.email, code, password });
+        storeSessionToken(res.token);
+        return;
+      } catch (err) {
+        if (cfg.authMode === "supabase" && cfg.supabaseUrl && cfg.supabaseAnonKey) {
+          const { data, error } = await sb().auth.verifyOtp({ email: who.email, token: code, type: "email" });
+          if (!error && data.session?.access_token) {
+            changed(data.session.access_token);
+            return;
+          }
+        }
+        throw err;
+      }
+    }
+    const { data, error } = await sb().auth.verifyOtp({ phone: who.phone, token: code, type: "sms" });
     if (error) throw error;
     changed(data.session?.access_token ?? null);
   }
 
   async function signOut(): Promise<void> {
-    if (cfg.authMode === "dev") sessionStorage.removeItem(cfg.storageKey);
-    else await sb().auth.signOut();
+    sessionStorage.removeItem(cfg.storageKey);
+    if (cfg.authMode === "supabase" && cfg.supabaseUrl && cfg.supabaseAnonKey) {
+      try { await sb().auth.signOut(); } catch {}
+    }
     changed(null);
   }
 
@@ -100,9 +136,39 @@ export function createSession(cfg: SessionConfig) {
         if (cachedToken === null) void getToken().then((t) => t !== cachedToken && changed(t));
         return () => listeners.delete(cb);
       },
-      () => identityFrom(cachedToken ?? (cfg.authMode === "dev" ? sessionStorage.getItem(cfg.storageKey) : null)),
+      () => identityFrom(cachedToken ?? (typeof window !== "undefined" ? sessionStorage.getItem(cfg.storageKey) : null)),
       () => undefined,
     );
+  }
+
+  // ---------------------------------------------------------------- 10-Minute Inactivity Watchdog
+  const INACTIVITY_MS = cfg.inactivityTimeoutMs ?? 10 * 60 * 1000; // 10 minutes
+
+  if (typeof window !== "undefined") {
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const resetInactivity = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      const isCurrentlyLoggedIn = !!sessionStorage.getItem(cfg.storageKey) || !!cachedToken;
+      if (!isCurrentlyLoggedIn) return;
+
+      inactivityTimer = setTimeout(() => {
+        void (async () => {
+          await signOut();
+          const p = window.location.pathname;
+          const isConsole = p.startsWith("/users") || p.startsWith("/applications") || p.startsWith("/support") ||
+            p.startsWith("/jury") || p.startsWith("/ranking") || p.startsWith("/volunteers") || p.startsWith("/login");
+          const target = isConsole ? "/login?timeout=1" : "/signin?timeout=1";
+          window.location.href = target;
+        })();
+      }, INACTIVITY_MS);
+    };
+
+    const activityEvents = ["mousemove", "pointermove", "mousedown", "keydown", "touchstart", "scroll", "wheel"];
+    for (const evt of activityEvents) {
+      window.addEventListener(evt, resetInactivity, { passive: true });
+    }
+    resetInactivity();
   }
 
   // ---------------------------------------------------------------- staff MFA (FR-IAM-11)
@@ -134,7 +200,7 @@ export function createSession(cfg: SessionConfig) {
         const c = claimsOf(await getToken());
         const who: SignInIdentifier | null = typeof c?.email === "string" ? { email: c.email } : typeof c?.phone === "string" ? { phone: c.phone } : null;
         if (!who) throw new Error("Sign in first");
-        storeDevToken((await api.devSession(who, true)).token);
+        storeSessionToken((await api.devSession(who, true)).token);
         return;
       }
       if (!factorId) throw new Error("No authenticator is enrolled");

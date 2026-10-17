@@ -622,10 +622,41 @@ export const DevSessionRequest = z
   .refine((b) => !!b.email !== !!b.phone, { message: "Provide either an email or a mobile number" });
 export type DevSessionRequest = z.input<typeof DevSessionRequest>;
 
+export const SendOtpRequest = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  purpose: z.enum(["login", "signup", "verification"]).default("login"),
+});
+export type SendOtpRequest = z.infer<typeof SendOtpRequest>;
+
+export const SendOtpResponse = z.object({
+  ok: z.boolean(),
+  message: z.string(),
+  expiresInSeconds: z.number(),
+});
+export type SendOtpResponse = z.infer<typeof SendOtpResponse>;
+
+export const VerifyOtpRequest = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  code: z.string().trim().min(4).max(10),
+  password: z.string().optional(),
+});
+export type VerifyOtpRequest = z.infer<typeof VerifyOtpRequest>;
+
+export const VerifyOtpResponse = z.object({
+  token: z.string(),
+  user: z.object({
+    id: z.string(),
+    email: z.string(),
+    fullName: z.string(),
+    roles: z.array(z.string()),
+  }),
+});
+export type VerifyOtpResponse = z.infer<typeof VerifyOtpResponse>;
+
 // ---------------------------------------------------------------- post-sign-in redirects (open-redirect protection)
 /** Internal destinations each web interface may return to after sign-in or MFA. Anything else falls back. */
-export const WEB_RETURN_PATHS = ["/", "/signup", "/register", "/status", "/activate", "/privacy", "/event"] as const;
-export const CONSOLE_RETURN_PATHS = ["/", "/applications", "/ranking", "/jury", "/volunteers", "/content", "/notices", "/support", "/users", "/imports"] as const;
+export const WEB_RETURN_PATHS = ["/", "/signin", "/signup", "/register", "/status", "/activate", "/privacy", "/event"] as const;
+export const CONSOLE_RETURN_PATHS = ["/", "/login", "/applications", "/ranking", "/jury", "/volunteers", "/content", "/notices", "/support", "/users", "/imports"] as const;
 
 const REDIRECT_BASE = "https://internal.invalid";
 

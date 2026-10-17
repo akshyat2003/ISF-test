@@ -12,11 +12,13 @@ import {
   NoticeWithdraw, PublishRequest, PushTokenRegister,
   EmergencyReport, HelpDeskAsk, HelpDeskEscalate, RequesterTicketCreate, SupportAssign, SupportContactLog, SupportEscalate, SupportNote,
   SupportPolicy, SupportStatusUpdate, SupportTicketCreate, TICKET_STATUSES, TicketText,
+  SendOtpRequest, VerifyOtpRequest,
 } from "@sj/contracts";
 import { z } from "zod";
 import type { Config } from "./config.js";
 import type { Sql } from "./db/client.js";
 import { createCredential, getUser, grantRole, issueActivation, listUsers, me, publicSignUp, redeemActivation, revokeRole, setStatus } from "./modules/accounts/service.js";
+import { sendOtpEmail, verifyOtpAndLogin } from "./modules/accounts/otp.js";
 import { listEditions, toPublic } from "./modules/editions/service.js";
 import { commitBatch, discardBatch, getBatch, listBatches, previewImport, templateCsv } from "./modules/imports/service.js";
 import { markRead, myNotifications } from "./modules/notifications/service.js";
@@ -529,6 +531,23 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       return { token: await issueDevToken(config.devAuthSecret!, body.email ?? null, { aal: body.mfa ? "aal2" : "aal1", ...(phone ? { phone } : {}) }) };
     });
   }
+
+  // ---------------------------------------------------------------- Nodemailer email OTP
+  app.post("/v1/auth/otp/send", async (req) => {
+    const body = parse(SendOtpRequest, req.body);
+    return sendOtpEmail(body.email, body.purpose);
+  });
+
+  app.post("/v1/auth/otp/verify", async (req) => {
+    const body = parse(VerifyOtpRequest, req.body);
+    return verifyOtpAndLogin(
+      sql,
+      config.devAuthSecret ?? "dev-auth-secret-for-jwt-signing-12345",
+      body.email,
+      body.code,
+      body.password,
+    );
+  });
 
   return app;
 }
