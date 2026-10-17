@@ -62,9 +62,6 @@ importers:
 
   frontend-console:
     dependencies:
-      '@sj/api':
-        specifier: workspace:*
-        version: link:../backend
       '@sj/client':
         specifier: workspace:*
         version: link:../packages/client
@@ -74,9 +71,18 @@ importers:
       '@sj/web-session':
         specifier: workspace:*
         version: link:../packages/web-session
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
       next:
         specifier: 16.4.1
         version: 16.4.1(@types/node@22.20.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      nodemailer:
+        specifier: 10.0.12
+        version: 10.0.12
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -99,9 +105,6 @@ importers:
 
   frontend-web:
     dependencies:
-      '@sj/api':
-        specifier: workspace:*
-        version: link:../backend
       '@sj/client':
         specifier: workspace:*
         version: link:../packages/client
@@ -111,9 +114,18 @@ importers:
       '@sj/web-session':
         specifier: workspace:*
         version: link:../packages/web-session
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
       next:
         specifier: 16.4.1
         version: 16.4.1(@types/node@22.20.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      nodemailer:
+        specifier: 10.0.12
+        version: 10.0.12
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
       react:
         specifier: 19.3.1
         version: 19.3.1

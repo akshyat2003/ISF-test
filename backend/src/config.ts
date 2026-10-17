@@ -132,6 +132,7 @@ export function productionBlockers(e: z.output<typeof Env>, privacyNoticeVersion
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, opts: { privacyNoticeVersion?: string } = {}): Config {
+  const e = Env.parse(env);
   const bypassGate = e.BYPASS_LAUNCH_GATE === "true" || process.env.VERCEL === "1" || !!process.env.NEXT_RUNTIME;
   if (e.NODE_ENV === "production" && !bypassGate) {
     const blockers = productionBlockers(e, opts.privacyNoticeVersion);

@@ -4,7 +4,7 @@ const apiTarget = process.env.API_PROXY_TARGET || process.env.NEXT_PUBLIC_API_UR
 
 const config: NextConfig = {
   // Workspace packages are TypeScript source.
-  transpilePackages: ["@sj/contracts", "@sj/client", "@sj/web-session", "@sj/api"],
+  transpilePackages: ["@sj/contracts", "@sj/client", "@sj/web-session"],
   poweredByHeader: false,
   async rewrites() {
     return [
