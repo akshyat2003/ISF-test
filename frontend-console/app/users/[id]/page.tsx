@@ -132,7 +132,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               <form className="toolbar" onSubmit={(e) => { e.preventDefault(); void act(() => api.admin.grantRole(u.id, role, edition ? Number(edition) : null)); }}>
                 <label>Role
                   <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
-                    {ROLES.map((r) => <option key={r} value={r}>{label(r)}</option>)}
+                    {ROLES.filter((r) => r !== "startup_team_leader" && r !== "startup_team_member").map((r) => <option key={r} value={r}>{label(r)}</option>)}
                   </select>
                 </label>
                 <label>Edition

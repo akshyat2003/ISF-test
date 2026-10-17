@@ -153,8 +153,6 @@ function Users() {
                   <option value="jury_member">⚖️ Jury Member (Pitch Scoring & Evaluations)</option>
                   <option value="volunteer">Volunteer (Participant Support)</option>
                   <option value="delegate">Delegate (VIP / Attendee)</option>
-                  <option value="startup_team_leader">Startup Team Leader</option>
-                  <option value="startup_team_member">Startup Team Member</option>
                 </select>
               </label>
             </div>
