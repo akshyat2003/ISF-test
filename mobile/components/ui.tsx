@@ -113,3 +113,5 @@ const s = StyleSheet.create({
   notice: { borderWidth: 1, borderRadius: 10, padding: 12 },
   badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, alignSelf: "flex-start" },
 });
+
+export { OrganizerLogos } from "./partners";

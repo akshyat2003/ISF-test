@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PublicEdition } from "@sj/contracts";
 import { formatDateRange, formatIst } from "@sj/client";
+import { OrganizerLogos } from "./organizer-logos";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function Home() {
         <p className="lede">
           {e26?.eventStartsOn && e26.eventEndsOn ? formatDateRange(e26.eventStartsOn, e26.eventEndsOn) : "18–20 December 2026"}
           {" "}· pre-event day 17 December 2026. Startup pitches, roundtables, awards, networking, forest trekking
-          and ecosystem discussions, organised by GIET University in association with the International Startup Foundation.
+          and ecosystem discussions, organised by GIET University in association with the International Startup Foundation and Incubatex Innovation.
         </p>
         <div className="actions">
           <Link href="/register" className="btn btn-primary">Register your startup</Link>
@@ -43,6 +44,8 @@ export default async function Home() {
           <Link href="/event" className="btn">Programme and event information</Link>
         </div>
       </section>
+
+      <OrganizerLogos layout="cards" title="Presented & Organised by" />
 
       <h2 style={{ marginTop: 40 }}>Registration</h2>
       {editions ? (

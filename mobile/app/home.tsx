@@ -3,7 +3,7 @@ import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { formatDateRange } from "@sj/client";
 import type { MyApplicationsResponse, PublicEdition } from "@sj/contracts";
-import { Badge, Button, Card, H1, H2, Loading, Notice, P, Screen, colors } from "../components/ui";
+import { Badge, Button, Card, H1, H2, Loading, Notice, OrganizerLogos, P, Screen, colors } from "../components/ui";
 import { ROLE_LABEL, STAFF_ROLES, STATUS_LABEL, STATUS_TONE } from "../lib/labels";
 import { messageOf, useSession } from "../lib/session";
 
@@ -49,6 +49,7 @@ export default function Home() {
           {roles.map((r) => <Badge key={r} text={ROLE_LABEL[r]} tone="ok" />)}
         </View>
       )}
+      <OrganizerLogos compact title="Event Organizers & Partners" />
 
       {me.editionAccess.map((year) => {
         const e = editions.find((x) => x.year === year);

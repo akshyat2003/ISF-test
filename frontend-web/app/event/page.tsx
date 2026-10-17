@@ -3,6 +3,7 @@
 import type { EventInfo } from "@sj/contracts";
 import { formatIst } from "@sj/client";
 import { DocumentButton } from "./document-button";
+import { OrganizerLogos } from "../organizer-logos";
 
 export const dynamic = "force-dynamic";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -36,6 +37,8 @@ export default async function EventPage() {
           The programme is tentative and may change. {e.lastUpdated ? `Last updated ${formatIst(e.lastUpdated)} IST.` : "Details will be published here soon."}
         </p>
       </section>
+
+      <OrganizerLogos layout="banner" title="Organised by" />
 
       <h2 style={{ marginTop: 24 }}>Programme</h2>
       <div className="list">

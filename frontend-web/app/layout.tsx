@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { AccountLink } from "./account-link";
+import { OrganizerLogos } from "./organizer-logos";
 
 export const metadata: Metadata = {
   title: "Startup Jathara @ Dandakaranya",
@@ -14,7 +15,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <header className="site-header">
           <div className="container">
-            <Link href="/" className="brand">Startup Jathara <span>@ Dandakaranya</span></Link>
+            <div className="header-brand-wrap">
+              <Link href="/" className="brand">Startup Jathara <span>@ Dandakaranya</span></Link>
+              <OrganizerLogos layout="header" />
+            </div>
             <nav className="nav" aria-label="Main">
               <Link href="/event">Programme</Link>
               <Link href="/register">Register a startup</Link>
@@ -25,9 +29,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         <main className="container">{children}</main>
         <footer className="site-footer">
-          <div className="container">
-            GIET University, Gunupur, Odisha · in association with the International Startup Foundation (ISF) ·{" "}
-            <Link href="/privacy">Privacy notice</Link>
+          <div className="container footer-content">
+            <OrganizerLogos layout="banner" title="Organised & Presented in association with" />
+            <div className="footer-links">
+              GIET University, Gunupur, Odisha · International Startup Foundation (ISF) · Incubatex Innovation ·{" "}
+              <Link href="/privacy">Privacy notice</Link>
+            </div>
           </div>
         </footer>
       </body>
