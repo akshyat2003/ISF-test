@@ -506,7 +506,7 @@ export default function RegisterPage() {
           )}
           <h1 className="success-title">Registration Confirmed!</h1>
           <p className="success-sub">
-            Welcome to <strong>Udbhav @ Startup Jathara 2026</strong>. Your startup profile and team credentials have been registered into the database.
+            Welcome to <strong>ISF @ Startup Jathara 2026</strong>. Your startup profile and team credentials have been registered into the database.
           </p>
 
           <div className="email-banner">
@@ -1015,8 +1015,8 @@ export default function RegisterPage() {
         {/* Header */}
         <div className="reg-header">
           <div className="brand-badge">
-            <img src="/logos/udbhav.png" alt="Udbhav" style={{ width: 22, height: 22, objectFit: "contain" }} />
-            <span>Startup Jathara 2026 · Dandakaranya</span>
+            <img src="/logos/udbhav.png" alt="ISF" style={{ width: 22, height: 22, objectFit: "contain" }} />
+            <span>ISF · Startup Jathara 2026 · Dandakaranya</span>
           </div>
           <h1 className="reg-title">Summit Registration</h1>
           <p className="reg-subtitle">

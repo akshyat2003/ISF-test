@@ -114,6 +114,39 @@ function getTransporter() {
   });
 }
 
+const IMAGEKIT_PRIVATE_KEY = process.env.IMAGEKIT_PRIVATE_KEY || "private_JWDwiRxL0FA1c0KxsGs5pxy5ykg=";
+
+async function uploadToImageKit(fileData: string, fileName: string): Promise<string> {
+  if (!fileData) return "";
+  if (fileData.startsWith("http://") || fileData.startsWith("https://")) {
+    return fileData;
+  }
+  try {
+    const authHeader = "Basic " + Buffer.from(IMAGEKIT_PRIVATE_KEY + ":").toString("base64");
+    const form = new FormData();
+    form.append("file", fileData);
+    form.append("fileName", fileName);
+    form.append("folder", "/isf_registrations");
+
+    const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
+      method: "POST",
+      headers: { Authorization: authHeader },
+      body: form,
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.url || fileData;
+    } else {
+      const err = await res.text();
+      console.error("[IMAGEKIT UPLOAD ERROR]", err);
+    }
+  } catch (err) {
+    console.error("[IMAGEKIT FETCH ERROR]", err);
+  }
+  return fileData;
+}
+
 const ALL_ADMIN_PERMISSIONS = [
   "activation.issue", "application.read_all", "application.read_own", "application.withdraw_own",
   "content.manage", "decision.draft", "decision.release", "edition.read_all", "evaluation.read_all",
@@ -421,9 +454,26 @@ async function handler(request: Request) {
             email text not null,
             created_at timestamptz not null default now()
           );
+          alter table startup_team_members enable row level security;
         `;
       } catch (err) {
         console.warn("[CONSOLE DB SCHEMA ENSURE]", err);
+      }
+
+      // Upload leader photo to ImageKit if provided as base64
+      let storedLeaderPhoto = photoUrl;
+      if (photoUrl && !photoUrl.startsWith("http")) {
+        const cleanName = fullName.replace(/[^a-zA-Z0-9]/g, "_") || "leader";
+        storedLeaderPhoto = await uploadToImageKit(photoUrl, `lead_${Date.now()}_${cleanName}.jpg`);
+      }
+
+      // Upload member photos to ImageKit if provided as base64
+      for (let i = 0; i < members.length; i++) {
+        const m = members[i];
+        if (m.photoUrl && !m.photoUrl.startsWith("http")) {
+          const cleanMemName = m.name.replace(/[^a-zA-Z0-9]/g, "_") || `mem_${i + 1}`;
+          m.photoUrl = await uploadToImageKit(m.photoUrl, `member_${i + 1}_${Date.now()}_${cleanMemName}.jpg`);
+        }
       }
 
       // Map category to system role
@@ -451,7 +501,7 @@ async function handler(request: Request) {
         )
         values (
           ${authSub}, ${email}, ${fullName}, ${mobile || null}, ${passwordHash},
-          'active', ${category}, ${teamName || null}, ${teamMembersSummary || null}, ${JSON.stringify(members)}::jsonb, ${photoUrl},
+          'active', ${category}, ${teamName || null}, ${teamMembersSummary || null}, ${JSON.stringify(members)}::jsonb, ${storedLeaderPhoto},
           ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
         )
         on conflict (lower(email)) where email is not null do update
@@ -464,7 +514,7 @@ async function handler(request: Request) {
             team_name = coalesce(${teamName || null}, user_accounts.team_name),
             team_members = coalesce(${teamMembersSummary || null}, user_accounts.team_members),
             team_members_json = coalesce(${JSON.stringify(members)}::jsonb, user_accounts.team_members_json),
-            photo_url = coalesce(${photoUrl}, user_accounts.photo_url),
+            photo_url = coalesce(${storedLeaderPhoto}, user_accounts.photo_url),
             domain = coalesce(${domain || null}, user_accounts.domain),
             alt_mobile = coalesce(${altMobile || null}, user_accounts.alt_mobile),
             city = coalesce(${city || null}, user_accounts.city),
@@ -850,7 +900,7 @@ async function handler(request: Request) {
       return Response.json([
         {
           year: 2026,
-          name: "Udbhav 2026",
+          name: "ISF 2026",
           preEventOn: "2026-12-18",
           eventStartsOn: "2026-12-19",
           eventEndsOn: "2026-12-20",
@@ -937,12 +987,12 @@ async function handler(request: Request) {
       if (transporter && email) {
         try {
           await transporter.sendMail({
-            from: process.env.NOTIFY_EMAIL_FROM || '"Udbhav 2026" <akshyatraj@yahoo.com>',
+            from: process.env.NOTIFY_EMAIL_FROM || '"ISF 2026" <akshyatraj@yahoo.com>',
             to: email,
-            subject: `Your Udbhav Console Staff Credentials`,
+            subject: `Your ISF Console Staff Credentials`,
             html: `
               <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-                <h2 style="color:#1d4ed8;margin:0 0 10px;font-size:22px;font-weight:800;">Udbhav Console</h2>
+                <h2 style="color:#1d4ed8;margin:0 0 10px;font-size:22px;font-weight:800;">ISF Console</h2>
                 <h3 style="color:#0f172a;font-size:18px;margin:0 0 12px;">Staff Account Created</h3>
                 <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 16px;">
                   Hello <strong>${fullName}</strong>,<br/><br/>

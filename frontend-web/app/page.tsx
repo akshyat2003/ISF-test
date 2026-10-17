@@ -22,12 +22,12 @@ export default async function Home() {
   return (
     <section className="hero">
       <div className="hero-emblem">
-        <Image src="/logos/udbhav.png" alt="Udbhav" width={80} height={80} style={{ borderRadius: 12, objectFit: "contain" }} priority />
+        <Image src="/logos/udbhav.png" alt="ISF" width={80} height={80} style={{ borderRadius: 12, objectFit: "contain" }} priority />
       </div>
 
       <span className="eyebrow-badge">GIET University · Gunupur, Odisha</span>
 
-      <h1>Udbhav · Startup Jathara</h1>
+      <h1>ISF · Startup Jathara</h1>
 
       <div className="pills-row">
         <span className="pill-item">📅 {eventDates} (Pre-event 17 Dec)</span>

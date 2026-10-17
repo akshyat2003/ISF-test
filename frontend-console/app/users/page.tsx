@@ -143,7 +143,7 @@ function Users() {
     const isSupport = roleNames.includes("customer_support");
     const dashboardUrl = isSupport ? `${origin}/support` : `${origin}/dashboard`;
     const lines = [
-      `Udbhav / ISF Platform Credentials`,
+      `ISF Platform Credentials`,
       `Name: ${createResult.user.fullName}`,
       `Role: ${roleNames}`,
       `Login Email: ${createResult.user.email ?? "N/A"}`,
@@ -209,7 +209,7 @@ function Users() {
             </div>
             <div className="two">
               <label>Login Email Address *
-                <input type="email" required placeholder="support.agent@udbhav.org" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+                <input type="email" required placeholder="support.agent@isf.org" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
               </label>
               <label>Mobile Number
                 <input type="tel" placeholder="+91 98765 43210" value={newMobile} onChange={(e) => setNewMobile(e.target.value)} />

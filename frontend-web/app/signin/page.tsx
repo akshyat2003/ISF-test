@@ -369,8 +369,8 @@ function SignInForm() {
           )}
 
           <div className="brand-logo-wrap" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <img src="/logos/udbhav.png" alt="Udbhav" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
-            <span className="brand-title">Udbhav</span>
+            <img src="/logos/udbhav.png" alt="ISF" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
+            <span className="brand-title">ISF</span>
           </div>
         </div>
 
@@ -387,7 +387,7 @@ function SignInForm() {
         {step === "email" && (
           <form onSubmit={handleEmailNext}>
             <h1 className="card-heading">Sign in</h1>
-            <p className="card-subtext">to continue to Udbhav Portal</p>
+            <p className="card-subtext">to continue to ISF Portal</p>
 
             <div style={{ marginBottom: 16 }}>
               <input

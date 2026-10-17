@@ -324,7 +324,7 @@ function LoginForm() {
           <div className="banner-content">
             <h1 className="banner-title">
               Hello<br />
-              Udbhav! 👋
+              ISF! 👋
             </h1>
             <p className="banner-text">
               Unified administration & real-time customer support console. Manage jury evaluations, delegate credentials, applications, and event operations with enterprise speed.
@@ -339,8 +339,8 @@ function LoginForm() {
         {/* Right Side: Clean White Login Form */}
         <div className="login-form-side">
           <div className="brand-name" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <img src="/logos/udbhav.png" alt="Udbhav" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
-            <span>Udbhav</span>
+            <img src="/logos/udbhav.png" alt="ISF" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
+            <span>ISF</span>
           </div>
 
           <h2 className="welcome-title">Welcome Back!</h2>

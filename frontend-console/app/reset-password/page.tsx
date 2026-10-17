@@ -318,8 +318,8 @@ function ResetPasswordForm() {
             ←
           </button>
           <div className="brand-logo-wrap" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <img src="/logos/udbhav.png" alt="Udbhav" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
-            <span className="brand-title">Udbhav Console</span>
+            <img src="/logos/udbhav.png" alt="ISF" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
+            <span className="brand-title">ISF Console</span>
           </div>
         </div>
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { Nav } from "./nav";
 
-export const metadata: Metadata = { title: "Udbhav Console · Management & Support", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "ISF Console · Management & Support", robots: { index: false, follow: false } };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,8 +12,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="site-header">
           <div className="container">
             <Link href="/" className="brand" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <img src="/logos/udbhav.png" alt="Udbhav" style={{ height: "32px", width: "auto", objectFit: "contain", borderRadius: "6px" }} />
-              <span>Udbhav <span style={{ color: "#0078d4" }}>Console</span></span>
+              <img src="/logos/udbhav.png" alt="ISF" style={{ height: "32px", width: "auto", objectFit: "contain", borderRadius: "6px" }} />
+              <span>ISF <span style={{ color: "#0078d4" }}>Console</span></span>
             </Link>
             <Nav />
           </div>

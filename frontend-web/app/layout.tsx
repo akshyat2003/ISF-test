@@ -6,8 +6,8 @@ import { AccountLink } from "./account-link";
 import { OrganizerLogos } from "./organizer-logos";
 
 export const metadata: Metadata = {
-  title: "Udbhav · Startup Jathara @ Dandakaranya",
-  description: "Udbhav – Startup Jathara @ Dandakaranya, 18–20 December 2026, GIET University, Gunupur, Odisha.",
+  title: "ISF · Startup Jathara @ Dandakaranya",
+  description: "ISF – Startup Jathara @ Dandakaranya, 18–20 December 2026, GIET University, Gunupur, Odisha.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -18,8 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="container">
             <div className="header-brand-wrap">
               <Link href="/" className="brand" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Image src="/logos/udbhav.png" alt="Udbhav" width={38} height={38} style={{ borderRadius: 8, objectFit: "contain" }} />
-                <span>Udbhav <span>@ Startup Jathara</span></span>
+                <Image src="/logos/udbhav.png" alt="ISF" width={38} height={38} style={{ borderRadius: 8, objectFit: "contain" }} />
+                <span>ISF <span>@ Startup Jathara</span></span>
               </Link>
             </div>
             <nav className="nav" aria-label="Main">

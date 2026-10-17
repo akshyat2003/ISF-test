@@ -121,6 +121,39 @@ function getTransporter() {
   });
 }
 
+const IMAGEKIT_PRIVATE_KEY = process.env.IMAGEKIT_PRIVATE_KEY || "private_JWDwiRxL0FA1c0KxsGs5pxy5ykg=";
+
+async function uploadToImageKit(fileData: string, fileName: string): Promise<string> {
+  if (!fileData) return "";
+  if (fileData.startsWith("http://") || fileData.startsWith("https://")) {
+    return fileData;
+  }
+  try {
+    const authHeader = "Basic " + Buffer.from(IMAGEKIT_PRIVATE_KEY + ":").toString("base64");
+    const form = new FormData();
+    form.append("file", fileData);
+    form.append("fileName", fileName);
+    form.append("folder", "/isf_registrations");
+
+    const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
+      method: "POST",
+      headers: { Authorization: authHeader },
+      body: form,
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.url || fileData;
+    } else {
+      const err = await res.text();
+      console.error("[IMAGEKIT UPLOAD ERROR]", err);
+    }
+  } catch (err) {
+    console.error("[IMAGEKIT FETCH ERROR]", err);
+  }
+  return fileData;
+}
+
 const ALL_ADMIN_PERMISSIONS = [
   "activation.issue", "application.read_all", "application.read_own", "application.withdraw_own",
   "content.manage", "decision.draft", "decision.release", "edition.read_all", "evaluation.read_all",
@@ -429,9 +462,26 @@ async function handler(request: Request) {
             email text not null,
             created_at timestamptz not null default now()
           );
+          alter table startup_team_members enable row level security;
         `;
       } catch (err) {
         console.warn("[DB SCHEMA ENSURE]", err);
+      }
+
+      // Upload leader photo to ImageKit if provided as base64
+      let storedLeaderPhoto = photoUrl;
+      if (photoUrl && !photoUrl.startsWith("http")) {
+        const cleanName = fullName.replace(/[^a-zA-Z0-9]/g, "_") || "leader";
+        storedLeaderPhoto = await uploadToImageKit(photoUrl, `lead_${Date.now()}_${cleanName}.jpg`);
+      }
+
+      // Upload member photos to ImageKit if provided as base64
+      for (let i = 0; i < members.length; i++) {
+        const m = members[i];
+        if (m.photoUrl && !m.photoUrl.startsWith("http")) {
+          const cleanMemName = m.name.replace(/[^a-zA-Z0-9]/g, "_") || `mem_${i + 1}`;
+          m.photoUrl = await uploadToImageKit(m.photoUrl, `member_${i + 1}_${Date.now()}_${cleanMemName}.jpg`);
+        }
       }
 
       // Map category to system role
@@ -459,7 +509,7 @@ async function handler(request: Request) {
         )
         values (
           ${authSub}, ${email}, ${fullName}, ${mobile || null}, ${passwordHash},
-          'active', ${category}, ${teamName || null}, ${teamMembersSummary || null}, ${JSON.stringify(members)}::jsonb, ${photoUrl},
+          'active', ${category}, ${teamName || null}, ${teamMembersSummary || null}, ${JSON.stringify(members)}::jsonb, ${storedLeaderPhoto},
           ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
         )
         on conflict (lower(email)) where email is not null do update
@@ -472,7 +522,7 @@ async function handler(request: Request) {
             team_name = coalesce(${teamName || null}, user_accounts.team_name),
             team_members = coalesce(${teamMembersSummary || null}, user_accounts.team_members),
             team_members_json = coalesce(${JSON.stringify(members)}::jsonb, user_accounts.team_members_json),
-            photo_url = coalesce(${photoUrl}, user_accounts.photo_url),
+            photo_url = coalesce(${storedLeaderPhoto}, user_accounts.photo_url),
             domain = coalesce(${domain || null}, user_accounts.domain),
             alt_mobile = coalesce(${altMobile || null}, user_accounts.alt_mobile),
             city = coalesce(${city || null}, user_accounts.city),
@@ -571,7 +621,7 @@ async function handler(request: Request) {
           roles,
           category,
           teamName,
-          photoUrl,
+          photoUrl: storedLeaderPhoto,
           membersCount: members.length,
         },
         message: "Registration successful! Your account is active.",
@@ -589,6 +639,7 @@ async function handler(request: Request) {
                   <thead>
                     <tr style="background:#f1f5f9;text-align:left;">
                       <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">#</th>
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Photo</th>
                       <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Name</th>
                       <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Email</th>
                       <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Phone</th>
@@ -598,6 +649,9 @@ async function handler(request: Request) {
                     ${members.map((m, i) => `
                       <tr style="border-bottom:1px solid #f1f5f9;">
                         <td style="padding:8px 12px;color:#64748b;">${i + 1}</td>
+                        <td style="padding:8px 12px;">
+                          ${m.photoUrl ? `<img src="${m.photoUrl}" alt="${m.name}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;" />` : "—"}
+                        </td>
                         <td style="padding:8px 12px;"><strong>${m.name}</strong></td>
                         <td style="padding:8px 12px;color:#2563eb;">${m.email}</td>
                         <td style="padding:8px 12px;">${m.phone}</td>
@@ -610,14 +664,14 @@ async function handler(request: Request) {
             : "";
 
           await transporter.sendMail({
-            from: process.env.NOTIFY_EMAIL_FROM || '"Udbhav 2026" <akshyatraj@yahoo.com>',
+            from: process.env.NOTIFY_EMAIL_FROM || '"ISF 2026" <akshyatraj@yahoo.com>',
             to: email,
-            subject: `Welcome to Startup Jathara 2026 - ${teamName || fullName} Registration Confirmed`,
+            subject: `Welcome to ISF Startup Jathara 2026 - ${teamName || fullName} Registration Confirmed`,
             html: `
               <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,0.06);">
                 <div style="margin-bottom:16px;">
                   <span style="display:inline-block;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:0.04em;">Dandakaranya Innovation Summit</span>
-                  <h2 style="color:#1d4ed8;margin:8px 0 4px;font-size:22px;font-weight:800;">Startup Jathara 2026</h2>
+                  <h2 style="color:#1d4ed8;margin:8px 0 4px;font-size:22px;font-weight:800;">ISF · Startup Jathara 2026</h2>
                   <p style="color:#64748b;font-size:13px;margin:0;">GIET University, Gunupur, Odisha · 18–20 December 2026</p>
                 </div>
 
@@ -632,6 +686,7 @@ async function handler(request: Request) {
                   <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">
                     Team Leader & Startup Profile
                   </div>
+                  ${storedLeaderPhoto ? `<div style="margin-bottom:10px;"><img src="${storedLeaderPhoto}" alt="Team Lead" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #2563eb;" /></div>` : ""}
                   <div style="margin-bottom:6px;"><strong>Startup / Team:</strong> ${teamName || "N/A"}</div>
                   <div style="margin-bottom:6px;"><strong>Team Lead Name:</strong> ${fullName}</div>
                   <div style="margin-bottom:6px;"><strong>Registered Email:</strong> ${email}</div>
@@ -651,7 +706,7 @@ async function handler(request: Request) {
                   <a href="https://isf-test.vercel.app/signin" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;box-shadow:0 4px 10px rgba(37,99,235,0.2);">Log In to Portal →</a>
                 </div>
                 <p style="color:#94a3b8;font-size:11px;margin:0;border-top:1px solid #f1f5f9;padding-top:14px;text-align:center;">
-                  Startup Jathara 2026 · Organised by GIET University & International Startup Foundation (ISF).
+                  Startup Jathara 2026 · Organised by International Startup Foundation (ISF) & GIET University.
                 </p>
               </div>
             `,
@@ -940,7 +995,7 @@ async function handler(request: Request) {
       return Response.json([
         {
           year: 2026,
-          name: "Udbhav 2026",
+          name: "ISF 2026",
           preEventOn: "2026-12-18",
           eventStartsOn: "2026-12-19",
           eventEndsOn: "2026-12-20",

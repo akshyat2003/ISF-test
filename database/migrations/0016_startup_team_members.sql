@@ -16,3 +16,5 @@ create table if not exists startup_team_members (
 
 create index if not exists idx_startup_team_members_leader on startup_team_members(leader_user_id);
 create index if not exists idx_startup_team_members_startup on startup_team_members(startup_id);
+
+alter table startup_team_members enable row level security;
