@@ -102,6 +102,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const isAllowed =
         config.corsOrigins.includes("*") ||
         config.corsOrigins.includes(origin) ||
+        origin.endsWith(".vercel.app") ||
+        origin.endsWith(".onrender.com") ||
         origin.startsWith("http://localhost:") ||
         origin.startsWith("http://127.0.0.1:") ||
         origin.startsWith("http://192.168.") ||
@@ -121,9 +123,22 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const authPending = authenticate((t) => verifier.verify(t), sql, { requireStaffMfa: config.requireStaffMfa, identity, allowPending: true });
 
   // ---------------------------------------------------------------- health
-  app.get("/healthz", async () => {
-    await sql`select 1`;
-    return { ok: true };
+  app.get("/healthz", async (req, reply) => {
+    let dbStatus = "connected";
+    let dbError = null;
+    try {
+      await sql`select 1`;
+    } catch (e: any) {
+      dbStatus = "error";
+      dbError = { message: e?.message, code: e?.code };
+      req.log.error({ err: e }, "Health check database connection failed");
+    }
+    return reply.status(dbStatus === "connected" ? 200 : 503).send({
+      ok: dbStatus === "connected",
+      dbStatus,
+      dbError,
+      authMode: config.authMode,
+    });
   });
 
   // ---------------------------------------------------------------- public
@@ -533,6 +548,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           if (u) {
             await sql`insert into role_grants (user_id, role) select ${u.id}, 'admin' where not exists (select 1 from role_grants where user_id = ${u.id} and role = 'admin' and revoked_at is null)`;
             await sql`insert into role_grants (user_id, role) select ${u.id}, 'management' where not exists (select 1 from role_grants where user_id = ${u.id} and role = 'management' and revoked_at is null)`;
+            await sql`insert into role_grants (user_id, role) select ${u.id}, 'customer_support' where not exists (select 1 from role_grants where user_id = ${u.id} and role = 'customer_support' and revoked_at is null)`;
             await sql`insert into edition_access (user_id, edition_id, source) values (${u.id}, 2026, 'predefined') on conflict (user_id, edition_id) do nothing`;
           }
         } catch {

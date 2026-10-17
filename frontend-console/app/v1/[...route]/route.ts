@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const DB_URL =
   process.env.DATABASE_URL ||
-  "postgresql://postgres:n0fE3G5tjwyXTt5C@db.wdeslbtyyeqpjdgnaieg.supabase.co:5432/postgres?sslmode=require";
+  "postgresql://postgres.wdeslbtyyeqpjdgnaieg:n0fE3G5tjwyXTt5C@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
 const JWT_SECRET = new TextEncoder().encode(
   process.env.DEV_AUTH_SECRET || "udbhav_2026_dev_auth_secret_key_gi_university_isf_min_32_chars"
 );
@@ -16,7 +16,7 @@ let sqlInstance: postgres.Sql | null = null;
 function getSql() {
   if (!sqlInstance) {
     sqlInstance = postgres(DB_URL, {
-      ssl: "require",
+      ssl: { rejectUnauthorized: false },
       max: 5,
       idle_timeout: 10,
       connect_timeout: 10,
@@ -203,7 +203,7 @@ async function handler(request: Request) {
             returning id
           `;
           userId = created?.id;
-          await sql`insert into role_grants (user_id, role) values (${userId}, 'admin'), (${userId}, 'management') on conflict do nothing`;
+          await sql`insert into role_grants (user_id, role) values (${userId}, 'admin'), (${userId}, 'management'), (${userId}, 'customer_support') on conflict do nothing`;
           await sql`insert into edition_access (user_id, edition_id, source) values (${userId}, 2026, 'predefined') on conflict do nothing`;
         }
 
@@ -217,8 +217,10 @@ async function handler(request: Request) {
         console.error("[AUTH USER DB ERROR]", e);
       }
 
-      if (!roles.length && ADMIN_EMAILS.has(email)) {
-        roles = ["admin", "management"];
+      if (ADMIN_EMAILS.has(email)) {
+        if (!roles.includes("admin")) roles.push("admin");
+        if (!roles.includes("management")) roles.push("management");
+        if (!roles.includes("customer_support")) roles.push("customer_support");
       }
 
       const token = await new SignJWT({
@@ -359,8 +361,43 @@ async function handler(request: Request) {
       ]);
     }
 
-    // ---------------------------------------------------- Fallback for other GET/POST routes
-    return Response.json({ ok: true, path });
+    // ---------------------------------------------------- Proxy all other routes to Render backend
+    try {
+      const renderBase =
+        process.env.BACKEND_API_URL ||
+        process.env.API_PROXY_TARGET ||
+        "https://isf-api.onrender.com";
+      const targetUrl = `${renderBase.replace(/\/$/, "")}${path}${url.search}`;
+
+      const reqHeaders = new Headers(request.headers);
+      reqHeaders.delete("host");
+
+      let reqBody: any = undefined;
+      if (method !== "GET" && method !== "HEAD") {
+        reqBody = await request.clone().arrayBuffer();
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const proxyRes = await fetch(targetUrl, {
+        method,
+        headers: reqHeaders,
+        body: reqBody,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const resBody = await proxyRes.arrayBuffer();
+      const resHeaders = new Headers(proxyRes.headers);
+      return new Response(resBody, {
+        status: proxyRes.status,
+        headers: resHeaders,
+      });
+    } catch (proxyErr) {
+      console.warn("[PROXY TO RENDER FAILED, USING FALLBACK]", proxyErr);
+      return Response.json({ ok: true, path });
+    }
   } catch (err) {
     console.error("[ROUTE HANDLER FATAL ERROR]", err);
     return Response.json(

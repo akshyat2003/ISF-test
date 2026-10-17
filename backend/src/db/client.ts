@@ -5,8 +5,13 @@ export type Sql = postgres.Sql;
 export type Db = postgres.Sql | postgres.TransactionSql;
 
 export function createSql(url: string, opts: { max?: number } = {}): Sql {
+  const isRemote =
+    url.includes("supabase.com") ||
+    url.includes("sslmode=require") ||
+    (!url.includes("127.0.0.1") && !url.includes("localhost"));
   return postgres(url, {
     max: opts.max ?? 10,
+    ssl: isRemote ? { rejectUnauthorized: false } : false,
     onnotice: () => {},
     connection: { application_name: "sj-api", TimeZone: "UTC" },
   });

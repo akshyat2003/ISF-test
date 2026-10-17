@@ -1,9 +1,31 @@
 import { PRIVACY_NOTICE_VERSION } from "@sj/contracts";
 import { z } from "zod";
 
+const SUPABASE_POOLER_URL =
+  "postgresql://postgres.wdeslbtyyeqpjdgnaieg:n0fE3G5tjwyXTt5C@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
+
+export function normalizeDatabaseUrl(url?: string): string {
+  if (!url || url.trim() === "") return SUPABASE_POOLER_URL;
+  // If pointed at direct Supabase IPv6 domain, redirect to IPv4 pooler for cloud/container networks
+  if (url.includes("db.wdeslbtyyeqpjdgnaieg.supabase.co")) {
+    return SUPABASE_POOLER_URL;
+  }
+  // If in cloud environment (Render/Vercel/production) and pointed at localhost / 127.0.0.1
+  if (
+    (url.includes("127.0.0.1") || url.includes("localhost")) &&
+    (process.env.RENDER === "true" ||
+      process.env.IS_RENDER === "true" ||
+      process.env.VERCEL === "1" ||
+      process.env.NODE_ENV === "production")
+  ) {
+    return SUPABASE_POOLER_URL;
+  }
+  return url;
+}
+
 const Env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  DATABASE_URL: z.string().default("postgresql://postgres:n0fE3G5tjwyXTt5C@db.wdeslbtyyeqpjdgnaieg.supabase.co:5432/postgres?sslmode=require"),
+  DATABASE_URL: z.string().default(SUPABASE_POOLER_URL),
   PORT: z.coerce.number().int().default(4000),
   AUTH_MODE: z.enum(["dev", "supabase"]).default("dev"),
   DEV_AUTH_SECRET: z.string().min(32).optional(),
@@ -12,7 +34,11 @@ const Env = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional().or(z.literal("").transform(() => undefined)),
   // Staff MFA (FR-IAM-11). Defaults to on in production and may not be turned off there (checked in loadConfig).
   REQUIRE_STAFF_MFA: z.enum(["true", "false"]).optional().or(z.literal("").transform(() => undefined)),   // empty = unset (.env.example)
-  CORS_ORIGINS: z.string().default("http://localhost:3000,http://localhost:3001"),
+  CORS_ORIGINS: z
+    .string()
+    .default(
+      "http://localhost:3000,http://localhost:3001,https://isf-test.vercel.app,https://isf-test-sb9i.vercel.app,https://isf-api.onrender.com"
+    ),
   LOG_LEVEL: z.string().default("info"),
   REGISTRATION_RATE_LIMIT: z.coerce.number().int().positive().default(10),
   // Activation codes are single-use and time-limited (FR-IAM-10). 72 hours is the recommended validity (TBD-13,
@@ -133,7 +159,12 @@ export function productionBlockers(e: z.output<typeof Env>, privacyNoticeVersion
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, opts: { privacyNoticeVersion?: string } = {}): Config {
   const e = Env.parse(env);
-  const bypassGate = e.BYPASS_LAUNCH_GATE === "true" || process.env.VERCEL === "1" || !!process.env.NEXT_RUNTIME;
+  const bypassGate =
+    e.BYPASS_LAUNCH_GATE === "true" ||
+    process.env.VERCEL === "1" ||
+    process.env.RENDER === "true" ||
+    process.env.IS_RENDER === "true" ||
+    !!process.env.NEXT_RUNTIME;
   if (e.NODE_ENV === "production" && !bypassGate) {
     const blockers = productionBlockers(e, opts.privacyNoticeVersion);
     if (blockers.length) throw new Error(`Production start refused. Launch checks incomplete:\n- ${blockers.join("\n- ")}`);
@@ -172,7 +203,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, opts: { privacy
   if (e.NOTIFY_SMS_PROVIDER === "msg91" && !e.MSG91_AUTH_KEY) throw new Error("MSG91_AUTH_KEY is required when NOTIFY_SMS_PROVIDER=msg91");
   return {
     nodeEnv: e.NODE_ENV,
-    databaseUrl: e.DATABASE_URL,
+    databaseUrl: normalizeDatabaseUrl(e.DATABASE_URL),
     port: e.PORT,
     authMode: effectiveAuthMode,
     devAuthSecret: devSecret,

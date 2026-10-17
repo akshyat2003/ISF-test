@@ -181,6 +181,7 @@ export async function verifyOtpAndLogin(
     if (ADMIN_EMAILS.has(normalizedEmail)) {
       await sql`insert into role_grants (user_id, role) select ${userId}, 'admin' where not exists (select 1 from role_grants where user_id = ${userId} and role = 'admin' and revoked_at is null)`;
       await sql`insert into role_grants (user_id, role) select ${userId}, 'management' where not exists (select 1 from role_grants where user_id = ${userId} and role = 'management' and revoked_at is null)`;
+      await sql`insert into role_grants (user_id, role) select ${userId}, 'customer_support' where not exists (select 1 from role_grants where user_id = ${userId} and role = 'customer_support' and revoked_at is null)`;
       await sql`insert into edition_access (user_id, edition_id, source) values (${userId}, 2026, 'predefined') on conflict (user_id, edition_id) do nothing`;
     }
 
@@ -188,10 +189,15 @@ export async function verifyOtpAndLogin(
       select role from role_grants where user_id = ${userId} and revoked_at is null
     `) as unknown as { role: string }[];
     roles = roleRows.map((r) => r.role);
+    if (ADMIN_EMAILS.has(normalizedEmail)) {
+      if (!roles.includes("admin")) roles.push("admin");
+      if (!roles.includes("management")) roles.push("management");
+      if (!roles.includes("customer_support")) roles.push("customer_support");
+    }
   } catch (err) {
     console.error("[OTP DB ERROR]", err);
     if (ADMIN_EMAILS.has(normalizedEmail)) {
-      roles = ["admin", "management"];
+      roles = ["admin", "management", "customer_support"];
     }
   }
 
