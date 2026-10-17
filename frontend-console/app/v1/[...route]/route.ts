@@ -453,7 +453,7 @@ async function handler(request: Request) {
 
       // Ensure DB table & columns exist
       try {
-        await sql`
+        await sql.unsafe(`
           alter table user_accounts add column if not exists photo_url text;
           alter table user_accounts add column if not exists team_members_json jsonb;
           alter table user_accounts add column if not exists redg_no text;
@@ -463,7 +463,7 @@ async function handler(request: Request) {
           alter table user_accounts add column if not exists alt_mobile text;
           alter table user_accounts add column if not exists city text;
           alter table user_accounts add column if not exists state text;
-          alter table user_accounts add column if not exists country text;
+          alter table user_accounts add column if not exists country text default 'India';
           alter table user_accounts add column if not exists linkedin_url text;
           create table if not exists startup_team_members (
             id uuid primary key default gen_random_uuid(),
@@ -476,7 +476,7 @@ async function handler(request: Request) {
             created_at timestamptz not null default now()
           );
           alter table startup_team_members enable row level security;
-        `;
+        `);
       } catch (err) {
         console.warn("[CONSOLE DB SCHEMA ENSURE]", err);
       }

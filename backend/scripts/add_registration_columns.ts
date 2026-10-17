@@ -17,6 +17,11 @@ async function run() {
   await sql`alter table user_accounts add column if not exists state text`;
   await sql`alter table user_accounts add column if not exists country text default 'India'`;
   await sql`alter table user_accounts add column if not exists linkedin_url text`;
+  await sql`alter table user_accounts add column if not exists photo_url text`;
+  await sql`alter table user_accounts add column if not exists team_members_json jsonb`;
+  await sql`alter table user_accounts add column if not exists redg_no text`;
+  await sql`alter table user_accounts add column if not exists roll_no text`;
+  await sql`alter table user_accounts add column if not exists organisation_name text`;
   console.log("SUCCESS: All registration profile columns added!");
   await sql.end({ timeout: 5 });
 }
