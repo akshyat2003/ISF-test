@@ -232,7 +232,7 @@ export function createSession(cfg: SessionConfig) {
 
   return {
     api, authMode: cfg.authMode, signInMethods: cfg.signInMethods ?? (["email", "phone"] as SignInMethod[]),
-    getToken, startSignIn, verifyCode, signOut, useSessionIdentity,
+    getToken, startSignIn, verifyCode, signOut, useSessionIdentity, storeSessionToken,
     /** @deprecated use useSessionIdentity (it also returns mobile numbers for phone sign-ins). */
     useSessionEmail: useSessionIdentity,
     mfa,

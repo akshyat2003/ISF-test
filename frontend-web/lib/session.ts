@@ -16,7 +16,7 @@ const resolveApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 };
 
-export const { api, authMode, signInMethods, startSignIn, verifyCode, signOut, useSessionIdentity } = createSession({
+export const { api, authMode, signInMethods, startSignIn, verifyCode, signOut, useSessionIdentity, storeSessionToken } = createSession({
   apiUrl: resolveApiUrl(),
   authMode: process.env.NEXT_PUBLIC_AUTH_MODE === "supabase" && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "supabase" : "dev",
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,

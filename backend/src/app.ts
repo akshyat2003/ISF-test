@@ -1,3 +1,4 @@
+import { scryptSync, randomBytes } from "node:crypto";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -150,6 +151,90 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const input = parse(PublicSignUpRequest, req.body);
     const result = await publicSignUp(sql, input, now());
     return reply.status(201).send(result);
+  });
+
+  app.post("/v1/auth/register", {
+    config: { rateLimit: { max: config.registrationRateLimit, timeWindow: "1 minute" } },
+  }, async (req, reply) => {
+    const body = (req.body as any) || {};
+    const email = String(body.email || "").toLowerCase().trim();
+    const fullName = String(body.fullName || "").trim();
+    const category = String(body.category || body.role || "startup_founder");
+    const teamName = String(body.teamName || body.startupName || "").trim();
+    const teamMembers = String(body.teamMembers || "").trim();
+    const mobile = String(body.mobile || body.phoneNumber || "").trim();
+    const altMobile = String(body.altMobile || "").trim();
+    const domain = String(body.domain || "").trim();
+    const city = String(body.city || "").trim();
+    const state = String(body.state || "").trim();
+    const country = String(body.country || "India").trim();
+    const linkedinUrl = String(body.linkedinUrl || "").trim();
+    const password = typeof body.password === "string" ? body.password.trim() : "";
+
+    if (!email || !email.includes("@")) throw new AppError(400, "bad_request", "A valid email address is required");
+    if (!fullName) throw new AppError(400, "bad_request", "Full name is required");
+
+    let role = "delegate";
+    if (category === "startup_founder" || category === "startup_team_leader") role = "startup_team_leader";
+    else if (category === "student_innovator" || category === "startup_team_member") role = "startup_team_member";
+    else if (category === "volunteer") role = "volunteer";
+    else if (category === "mentor" || category === "jury_member") role = "jury_member";
+    else if (category === "management") role = "management";
+
+    const [u] = await sql<{ id: string }[]>`
+      insert into user_accounts (
+        auth_subject, email, full_name, mobile_e164, status,
+        category, team_name, team_members, domain, alt_mobile, city, state, country, linkedin_url
+      )
+      values (
+        ${`dev|${email}`}, ${email}, ${fullName}, ${mobile || null}, 'active',
+        ${category}, ${teamName || null}, ${teamMembers || null}, ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
+      )
+      on conflict (lower(email)) where email is not null do update
+      set full_name = ${fullName},
+          mobile_e164 = coalesce(${mobile || null}, user_accounts.mobile_e164),
+          category = ${category},
+          team_name = coalesce(${teamName || null}, user_accounts.team_name),
+          team_members = coalesce(${teamMembers || null}, user_accounts.team_members),
+          domain = coalesce(${domain || null}, user_accounts.domain),
+          alt_mobile = coalesce(${altMobile || null}, user_accounts.alt_mobile),
+          city = coalesce(${city || null}, user_accounts.city),
+          state = coalesce(${state || null}, user_accounts.state),
+          country = coalesce(${country || 'India'}, user_accounts.country),
+          linkedin_url = coalesce(${linkedinUrl || null}, user_accounts.linkedin_url),
+          updated_at = now()
+      returning id
+    `;
+
+    const userId = u!.id;
+    await sql`
+      insert into role_grants (user_id, role, edition_id)
+      values (${userId}, ${role}, 2026)
+      on conflict do nothing
+    `;
+    await sql`
+      insert into edition_access (user_id, edition_id, source)
+      values (${userId}, 2026, 'predefined')
+      on conflict do nothing
+    `;
+
+    if (password) {
+      // update password hash
+      const salt = randomBytes(16).toString("hex");
+      const derivedKey = scryptSync(password, salt, 64);
+      const hash = `${salt}:${derivedKey.toString("hex")}`;
+      await sql`update user_accounts set password_hash = ${hash} where id = ${userId}`;
+    }
+
+    return reply.status(201).send({
+      ok: true,
+      userId,
+      email,
+      fullName,
+      role,
+      category,
+      message: "Registration successful! You can now log in with your credentials.",
+    });
   });
 
   // ---------------------------------------------------------------- applicant (any signed-in user, own data)

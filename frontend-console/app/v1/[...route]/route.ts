@@ -253,6 +253,146 @@ async function handler(request: Request) {
       return response;
     }
 
+    // ---------------------------------------------------- POST /v1/auth/register & POST /v1/public/signup
+    if ((path.includes("/auth/register") || path.includes("/public/signup")) && method === "POST") {
+      const body = await request.json();
+      const email = String(body.email || "").toLowerCase().trim();
+      const fullName = String(body.fullName || "").trim();
+      const password = typeof body.password === "string" ? body.password.trim() : "";
+      const category = String(body.category || body.role || "startup_founder");
+      const teamName = String(body.teamName || body.startupName || "").trim();
+      const teamMembers = String(body.teamMembers || "").trim();
+      const mobile = String(body.mobile || body.phoneNumber || "").trim();
+      const altMobile = String(body.altMobile || "").trim();
+      const domain = String(body.domain || "").trim();
+      const city = String(body.city || "").trim();
+      const state = String(body.state || "").trim();
+      const country = String(body.country || "India").trim();
+      const linkedinUrl = String(body.linkedinUrl || "").trim();
+
+      if (!email || !email.includes("@")) {
+        return Response.json({ message: "A valid email address is required" }, { status: 400 });
+      }
+      if (!fullName) {
+        return Response.json({ message: "Full name is required" }, { status: 400 });
+      }
+
+      // Map category to system role
+      let role = "delegate";
+      if (category === "startup_founder" || category === "startup_team_leader") role = "startup_team_leader";
+      else if (category === "student_innovator" || category === "startup_team_member") role = "startup_team_member";
+      else if (category === "volunteer") role = "volunteer";
+      else if (category === "mentor" || category === "jury_member") role = "jury_member";
+      else if (category === "management") role = "management";
+      else if (category === "investor" || category === "corporate" || category === "observer" || category === "delegate") role = "delegate";
+
+      const passwordHash = password ? hashPassword(password) : null;
+      const authSub = `dev|${email}`;
+
+      // Insert or update user_accounts
+      const [user] = await sql`
+        insert into user_accounts (
+          auth_subject, email, full_name, mobile_e164, password_hash,
+          status, category, team_name, team_members, domain, alt_mobile, city, state, country, linkedin_url
+        )
+        values (
+          ${authSub}, ${email}, ${fullName}, ${mobile || null}, ${passwordHash},
+          'active', ${category}, ${teamName || null}, ${teamMembers || null}, ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
+        )
+        on conflict (lower(email)) where email is not null do update
+        set auth_subject = ${authSub},
+            full_name = ${fullName},
+            mobile_e164 = coalesce(${mobile || null}, user_accounts.mobile_e164),
+            password_hash = coalesce(${passwordHash}, user_accounts.password_hash),
+            status = 'active',
+            category = ${category},
+            team_name = coalesce(${teamName || null}, user_accounts.team_name),
+            team_members = coalesce(${teamMembers || null}, user_accounts.team_members),
+            domain = coalesce(${domain || null}, user_accounts.domain),
+            alt_mobile = coalesce(${altMobile || null}, user_accounts.alt_mobile),
+            city = coalesce(${city || null}, user_accounts.city),
+            state = coalesce(${state || null}, user_accounts.state),
+            country = coalesce(${country || 'India'}, user_accounts.country),
+            linkedin_url = coalesce(${linkedinUrl || null}, user_accounts.linkedin_url),
+            updated_at = now()
+        returning id, email, full_name
+      `;
+
+      const userId = user.id;
+
+      // Grant role
+      await sql`
+        insert into role_grants (user_id, role, edition_id)
+        values (${userId}, ${role}, 2026)
+        on conflict do nothing
+      `;
+
+      // Grant edition access
+      await sql`
+        insert into edition_access (user_id, edition_id, source)
+        values (${userId}, 2026, 'predefined')
+        on conflict do nothing
+      `;
+
+      // If teamName provided, link to startups
+      if (teamName) {
+        const [startup] = await sql`
+          insert into startups (name, origin, created_by, city, state)
+          values (${teamName}, 'applicant', ${userId}, ${city || null}, ${state || null})
+          on conflict do nothing
+          returning id
+        `;
+        if (startup) {
+          await sql`
+            insert into startup_memberships (startup_id, user_id, position)
+            values (${startup.id}, ${userId}, ${role === 'startup_team_leader' ? 'leader' : 'member'})
+            on conflict do nothing
+          `;
+        }
+      }
+
+      // Generate JWT session token
+      const roles = [role];
+      if (ADMIN_EMAILS.has(email)) {
+        if (!roles.includes("admin")) roles.push("admin");
+        if (!roles.includes("management")) roles.push("management");
+      }
+
+      const token = await new SignJWT({
+        email,
+        email_verified: true,
+        aal: "aal1",
+        roles,
+      })
+        .setProtectedHeader({ alg: "HS256" })
+        .setSubject(authSub)
+        .setIssuedAt()
+        .setExpirationTime("24h")
+        .sign(JWT_SECRET);
+
+      const response = Response.json({
+        ok: true,
+        token,
+        roles,
+        user: {
+          id: userId,
+          email,
+          fullName,
+          roles,
+          category,
+          teamName,
+        },
+        message: "Registration successful! Your account is active.",
+      });
+
+      response.headers.set(
+        "Set-Cookie",
+        `sj_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax`
+      );
+
+      return response;
+    }
+
     // ---------------------------------------------------- POST /v1/auth/password/update
     if (path.includes("/auth/password/update") && method === "POST") {
       const body = await request.json();
