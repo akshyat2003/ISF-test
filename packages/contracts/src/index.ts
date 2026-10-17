@@ -669,7 +669,7 @@ export type UpdatePasswordResponse = z.infer<typeof UpdatePasswordResponse>;
 // ---------------------------------------------------------------- post-sign-in redirects (open-redirect protection)
 /** Internal destinations each web interface may return to after sign-in or MFA. Anything else falls back. */
 export const WEB_RETURN_PATHS = ["/", "/register", "/status", "/activate", "/privacy", "/event", "/reset-password"] as const;
-export const CONSOLE_RETURN_PATHS = ["/", "/reset-password", "/applications", "/ranking", "/jury", "/volunteers", "/content", "/notices", "/support", "/users", "/imports"] as const;
+export const CONSOLE_RETURN_PATHS = ["/", "/dashboard", "/reset-password", "/applications", "/ranking", "/jury", "/volunteers", "/content", "/notices", "/support", "/users", "/imports"] as const;
 
 const REDIRECT_BASE = "https://internal.invalid";
 

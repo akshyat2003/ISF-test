@@ -7,6 +7,7 @@ export function Nav() {
   const { me } = useMe();
   return (
     <nav className="nav" aria-label="Console">
+      {me && <Link href="/dashboard">Dashboard</Link>}
       {can(me, "application.read_all") && <Link href="/applications">Applications</Link>}
       {can(me, "ranking.read") && <Link href="/ranking">AI ranking</Link>}
       {can(me, "jury.manage") && <Link href="/jury">Jury</Link>}

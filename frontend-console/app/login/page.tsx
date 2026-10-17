@@ -8,7 +8,7 @@ import { startSignIn, verifyCode } from "@/lib/session";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = safeReturnPath(searchParams.get("next"), CONSOLE_RETURN_PATHS, "/");
+  const next = safeReturnPath(searchParams.get("next"), CONSOLE_RETURN_PATHS, "/dashboard");
   const isTimeout = searchParams.get("timeout") === "1";
 
   const [email, setEmail] = useState("");
@@ -28,20 +28,20 @@ function LoginForm() {
         if (password.trim()) {
           // Direct password verification
           await verifyCode(email.trim(), "000000", password.trim());
-          router.push(next);
+          window.location.href = next;
           return;
         }
         // If password is not provided, request OTP
         const res = await startSignIn(email.trim());
         if (res === "signed_in") {
-          router.push(next);
+          window.location.href = next;
         } else {
           setStage("code");
           setOtpSentMsg(`A 6-digit OTP code has been dispatched to ${email.trim()}.`);
         }
       } else {
         await verifyCode(email.trim(), code.trim(), password.trim() || undefined);
-        router.push(next);
+        window.location.href = next;
       }
     } catch (err) {
       setError((err as Error).message || "Log in failed. Please check credentials.");

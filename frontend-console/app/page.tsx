@@ -14,32 +14,7 @@ export default function Home() {
       router.replace("/mfa");
       return;
     }
-    // Customer support logs in directly to Support dashboard
-    if (me.roles.includes("customer_support") && !me.roles.includes("admin") && !me.roles.includes("management")) {
-      router.replace("/support");
-      return;
-    }
-    // Admin logs in directly to Users & Credentials management dashboard
-    if (me.roles.includes("admin")) {
-      router.replace("/users");
-      return;
-    }
-    if (can(me, "support.handle")) {
-      router.replace("/support");
-      return;
-    }
-    if (can(me, "application.read_all")) {
-      router.replace("/applications");
-      return;
-    }
-    if (can(me, "user.read")) {
-      router.replace("/users");
-      return;
-    }
-    if (can(me, "import.manage")) {
-      router.replace("/imports");
-      return;
-    }
+    router.replace("/dashboard");
   }, [me, router]);
   if (email === undefined) return null;
   if (!email) return <p>Please <Link href="/login">log in</Link>.</p>;
