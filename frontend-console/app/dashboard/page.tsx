@@ -6,12 +6,11 @@ import { can, useMe } from "@/lib/me";
 import { signOut, api } from "@/lib/session";
 
 export default function DashboardPage() {
-  const { me, email, error } = useMe();
+  const { me, email } = useMe();
   const router = useRouter();
 
-  // 10-minute session inactivity timeout tracking
+  // 10-minute silent session inactivity timeout tracking
   const [lastActivity, setLastActivity] = useState(Date.now());
-  const [secondsRemaining, setSecondsRemaining] = useState(600);
   const [stats, setStats] = useState({
     applications: "12",
     tickets: "3",
@@ -20,7 +19,7 @@ export default function DashboardPage() {
   });
   const [backendHealth, setBackendHealth] = useState<"checking" | "online" | "degraded">("checking");
 
-  // Track user activity to reset 10-minute countdown
+  // Track user activity to reset 10-minute countdown silently
   useEffect(() => {
     function resetTimer() {
       setLastActivity(Date.now());
@@ -28,13 +27,12 @@ export default function DashboardPage() {
     window.addEventListener("mousemove", resetTimer);
     window.addEventListener("keydown", resetTimer);
     window.addEventListener("click", resetTimer);
+    window.addEventListener("touchstart", resetTimer);
     window.addEventListener("scroll", resetTimer);
 
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - lastActivity) / 1000);
-      const remaining = Math.max(0, 600 - elapsed);
-      setSecondsRemaining(remaining);
-      if (remaining === 0) {
+      if (elapsed >= 600) {
         clearInterval(interval);
         signOut();
         router.replace("/login?timeout=1");
@@ -46,6 +44,7 @@ export default function DashboardPage() {
       window.removeEventListener("mousemove", resetTimer);
       window.removeEventListener("keydown", resetTimer);
       window.removeEventListener("click", resetTimer);
+      window.removeEventListener("touchstart", resetTimer);
       window.removeEventListener("scroll", resetTimer);
     };
   }, [lastActivity, router]);
@@ -99,14 +98,9 @@ export default function DashboardPage() {
     return null;
   }
 
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  };
-
-  const isAdmin = me?.roles.includes("admin");
-  const isManagement = me?.roles.includes("management");
+  const ADMIN_EMAILS = ["akshatrajpati@gmail.com", "arushkumar450@gmail.com", "sarangeeamartya@gmail.com"];
+  const isDirectAdmin = email ? ADMIN_EMAILS.includes(email.toLowerCase()) : false;
+  const isAdmin = isDirectAdmin || me?.roles.includes("admin") || me?.roles.includes("management");
   const isSupport = me?.roles.includes("customer_support");
 
   return (
@@ -164,27 +158,7 @@ export default function DashboardPage() {
           font-size: 15px;
           opacity: 0.9;
           margin: 0;
-          max-width: 600px;
-        }
-        .session-badge {
-          background: rgba(0, 0, 0, 0.25);
-          backdrop-filter: blur(8px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 12px;
-          padding: 12px 18px;
-          text-align: right;
-        }
-        .session-timer {
-          font-family: monospace;
-          font-size: 20px;
-          font-weight: 800;
-          color: #fef08a;
-        }
-        .session-label {
-          font-size: 11px;
-          opacity: 0.8;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
+          max-width: 650px;
         }
         .stats-grid {
           display: grid;
@@ -359,56 +333,60 @@ export default function DashboardPage() {
             Startup Jathara 2026 Admin & Operations Console · GIET University
           </p>
         </div>
-        <div className="session-badge">
-          <div className="session-timer">{formatTime(secondsRemaining)}</div>
-          <div className="session-label">Session Timeout (10m idle)</div>
-        </div>
       </div>
 
       {/* Overview Stat Cards */}
       <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-header">
-            <span className="stat-label">Applications</span>
-            <div className="stat-icon" style={{ background: "#eff6ff", color: "#2563eb" }}>📝</div>
+        <Link href="/applications" style={{ textDecoration: "none", color: "inherit" }}>
+          <div className="stat-card">
+            <div className="stat-header">
+              <span className="stat-label">Applications</span>
+              <div className="stat-icon" style={{ background: "#eff6ff", color: "#2563eb" }}>📝</div>
+            </div>
+            <div className="stat-value">{stats.applications}</div>
+            <div className="stat-desc">Startup applications registered →</div>
           </div>
-          <div className="stat-value">{stats.applications}</div>
-          <div className="stat-desc">Startup applications registered</div>
-        </div>
+        </Link>
 
-        <div className="stat-card">
-          <div className="stat-header">
-            <span className="stat-label">Support Queue</span>
-            <div className="stat-icon" style={{ background: "#fef2f2", color: "#dc2626" }}>🎧</div>
+        <Link href="/support" style={{ textDecoration: "none", color: "inherit" }}>
+          <div className="stat-card">
+            <div className="stat-header">
+              <span className="stat-label">Support Queue</span>
+              <div className="stat-icon" style={{ background: "#fef2f2", color: "#dc2626" }}>🎧</div>
+            </div>
+            <div className="stat-value">{stats.tickets}</div>
+            <div className="stat-desc">Active tickets & emergency help →</div>
           </div>
-          <div className="stat-value">{stats.tickets}</div>
-          <div className="stat-desc">Active tickets & emergency help</div>
-        </div>
+        </Link>
 
-        <div className="stat-card">
-          <div className="stat-header">
-            <span className="stat-label">Active Users</span>
-            <div className="stat-icon" style={{ background: "#f0fdf4", color: "#16a34a" }}>👥</div>
+        <Link href="/users" style={{ textDecoration: "none", color: "inherit" }}>
+          <div className="stat-card">
+            <div className="stat-header">
+              <span className="stat-label">Active Users</span>
+              <div className="stat-icon" style={{ background: "#f0fdf4", color: "#16a34a" }}>👥</div>
+            </div>
+            <div className="stat-value">{stats.users}</div>
+            <div className="stat-desc">Staff, jury & volunteer accounts →</div>
           </div>
-          <div className="stat-value">{stats.users}</div>
-          <div className="stat-desc">Staff, jury & volunteer accounts</div>
-        </div>
+        </Link>
 
-        <div className="stat-card">
-          <div className="stat-header">
-            <span className="stat-label">AI Ranking</span>
-            <div className="stat-icon" style={{ background: "#faf5ff", color: "#9333ea" }}>⚡</div>
+        <Link href="/ranking" style={{ textDecoration: "none", color: "inherit" }}>
+          <div className="stat-card">
+            <div className="stat-header">
+              <span className="stat-label">AI Ranking</span>
+              <div className="stat-icon" style={{ background: "#faf5ff", color: "#9333ea" }}>⚡</div>
+            </div>
+            <div className="stat-value" style={{ fontSize: 24 }}>{stats.ranking}</div>
+            <div className="stat-desc">Scoring models & evaluation criteria →</div>
           </div>
-          <div className="stat-value" style={{ fontSize: 24 }}>{stats.ranking}</div>
-          <div className="stat-desc">Scoring models & evaluation criteria</div>
-        </div>
+        </Link>
       </div>
 
       {/* Management Modules */}
       <h2 className="section-title">Console Operations</h2>
       <div className="modules-grid">
         {/* Applications */}
-        {can(me, "application.read_all") && (
+        {(isAdmin || can(me, "application.read_all")) && (
           <Link href="/applications" className="module-card">
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#dbeafe", color: "#1d4ed8" }}>
@@ -429,7 +407,7 @@ export default function DashboardPage() {
         )}
 
         {/* Customer Support */}
-        {(can(me, "support.handle") || can(me, "support.review") || isSupport || isAdmin) && (
+        {(isAdmin || isSupport || can(me, "support.handle") || can(me, "support.review")) && (
           <Link href="/support" className="module-card">
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#fee2e2", color: "#dc2626" }}>
@@ -450,7 +428,7 @@ export default function DashboardPage() {
         )}
 
         {/* User Accounts & Credentials */}
-        {can(me, "user.read") && (
+        {(isAdmin || can(me, "user.read")) && (
           <Link href="/users" className="module-card">
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#dcfce7", color: "#15803d" }}>
@@ -471,7 +449,7 @@ export default function DashboardPage() {
         )}
 
         {/* AI Ranking */}
-        {can(me, "ranking.read") && (
+        {(isAdmin || can(me, "ranking.read")) && (
           <Link href="/ranking" className="module-card">
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#f3e8ff", color: "#7e22ce" }}>
@@ -492,7 +470,7 @@ export default function DashboardPage() {
         )}
 
         {/* Jury Panels */}
-        {can(me, "jury.manage") && (
+        {(isAdmin || can(me, "jury.manage")) && (
           <Link href="/jury" className="module-card">
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#ffedd5", color: "#c2410c" }}>
@@ -513,7 +491,7 @@ export default function DashboardPage() {
         )}
 
         {/* Volunteers */}
-        {can(me, "volunteer.read") && (
+        {(isAdmin || can(me, "volunteer.read")) && (
           <Link href="/volunteers" className="module-card">
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#ccfbf1", color: "#0f766e" }}>
@@ -534,7 +512,7 @@ export default function DashboardPage() {
         )}
 
         {/* Broadcast Notices */}
-        {can(me, "notice.publish") && (
+        {(isAdmin || can(me, "notice.publish")) && (
           <Link href="/notices" className="module-card">
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#fef3c7", color: "#b45309" }}>
@@ -555,7 +533,7 @@ export default function DashboardPage() {
         )}
 
         {/* Event Info / Content */}
-        {can(me, "content.read_all") && (
+        {(isAdmin || can(me, "content.read_all")) && (
           <Link href="/content" className="module-card">
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#f1f5f9", color: "#475569" }}>
@@ -576,7 +554,7 @@ export default function DashboardPage() {
         )}
 
         {/* Imports */}
-        {can(me, "import.manage") && (
+        {(isAdmin || can(me, "import.manage")) && (
           <Link href="/imports" className="module-card">
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#e0e7ff", color: "#4338ca" }}>

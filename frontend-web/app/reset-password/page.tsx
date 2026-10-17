@@ -332,13 +332,8 @@ function ResetPasswordForm() {
             </button>
           )}
 
-          <div className="brand-logo-wrap">
-            <div className="ms-tiles">
-              <span className="tile-red" />
-              <span className="tile-green" />
-              <span className="tile-blue" />
-              <span className="tile-yellow" />
-            </div>
+          <div className="brand-logo-wrap" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <img src="/logos/udbhav.png" alt="Udbhav" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
             <span className="brand-title">Udbhav</span>
           </div>
         </div>

@@ -11,8 +11,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <header className="site-header">
           <div className="container">
-            <Link href="/" className="brand">
-              Udbhav <span>Console</span>
+            <Link href="/" className="brand" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <img src="/logos/udbhav.png" alt="Udbhav" style={{ height: "32px", width: "auto", objectFit: "contain", borderRadius: "6px" }} />
+              <span>Udbhav <span style={{ color: "#0078d4" }}>Console</span></span>
             </Link>
             <Nav />
           </div>

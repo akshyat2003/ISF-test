@@ -312,7 +312,10 @@ function LoginForm() {
 
         {/* Right Side: Clean White Login Form */}
         <div className="login-form-side">
-          <div className="brand-name">Udbhav</div>
+          <div className="brand-name" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <img src="/logos/udbhav.png" alt="Udbhav" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
+            <span>Udbhav</span>
+          </div>
 
           <h2 className="welcome-title">Welcome Back!</h2>
           <p className="welcome-subtitle">
