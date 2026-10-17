@@ -3,7 +3,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CONSOLE_RETURN_PATHS, safeReturnPath } from "@sj/contracts";
-import { startSignIn, verifyCode } from "@/lib/session";
+import { api, startSignIn, verifyCode } from "@/lib/session";
 
 function LoginForm() {
   const router = useRouter();
@@ -19,6 +19,32 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [otpSentMsg, setOtpSentMsg] = useState<string | null>(null);
 
+  async function redirectByRole() {
+    const explicitNext = searchParams.get("next");
+    if (explicitNext) {
+      window.location.href = next;
+      return;
+    }
+    try {
+      const me = await api.me();
+      if (me.roles.includes("customer_support") && !me.roles.includes("admin") && !me.roles.includes("management")) {
+        window.location.href = "/support";
+        return;
+      }
+      if (me.roles.includes("jury_member") && !me.roles.includes("admin")) {
+        window.location.href = "/jury";
+        return;
+      }
+      if (me.roles.includes("volunteer") && !me.roles.includes("admin")) {
+        window.location.href = "/volunteers";
+        return;
+      }
+    } catch {
+      // Ignore me error and fallback to default
+    }
+    window.location.href = next;
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -28,20 +54,20 @@ function LoginForm() {
         if (password.trim()) {
           // Direct password verification
           await verifyCode(email.trim(), "000000", password.trim());
-          window.location.href = next;
+          await redirectByRole();
           return;
         }
         // If password is not provided, request OTP
         const res = await startSignIn(email.trim());
         if (res === "signed_in") {
-          window.location.href = next;
+          await redirectByRole();
         } else {
           setStage("code");
           setOtpSentMsg(`A 6-digit OTP code has been dispatched to ${email.trim()}.`);
         }
       } else {
         await verifyCode(email.trim(), code.trim(), password.trim() || undefined);
-        window.location.href = next;
+        await redirectByRole();
       }
     } catch (err) {
       setError((err as Error).message || "Log in failed. Please check credentials.");

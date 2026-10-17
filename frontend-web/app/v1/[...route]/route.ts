@@ -28,11 +28,6 @@ function getSql() {
 type StoredOtp = { code: string; expiresAt: number; attempts: number };
 const otpStore = new Map<string, StoredOtp>();
 
-const ADMIN_EMAILS = new Set([
-  "sarangeeamartya@gmail.com",
-  "arushkumar450@gmail.com",
-  "akshatrajpati@gmail.com",
-]);
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -194,34 +189,22 @@ async function handler(request: Request) {
         const userRows = await sql`select id, status from user_accounts where lower(email) = ${email}`;
         userId = userRows[0]?.id ?? null;
 
-        if (!userId && ADMIN_EMAILS.has(email)) {
-          const defaultName = email.split("@")[0] || "Admin";
-          const [created] = await sql`
-            insert into user_accounts (auth_subject, email, full_name, status)
-            values (${authSub}, ${email}, ${defaultName}, 'active')
-            on conflict (lower(email)) where email is not null do update
-            set status = 'active'
-            returning id
-          `;
-          userId = created?.id;
-          await sql`insert into role_grants (user_id, role) values (${userId}, 'admin'), (${userId}, 'management'), (${userId}, 'customer_support') on conflict do nothing`;
-          await sql`insert into edition_access (user_id, edition_id, source) values (${userId}, 2026, 'predefined') on conflict do nothing`;
-        }
-
         if (userId) {
           const roleRows = await sql`
             select role from role_grants where user_id = ${userId} and revoked_at is null
           `;
           roles = roleRows.map((r: any) => r.role);
+          if (roles.length === 0 && userRows[0]?.category) {
+            const cat = userRows[0].category;
+            if (cat === "customer_support") roles.push("customer_support");
+            else if (cat === "jury_member" || cat === "mentor") roles.push("jury_member");
+            else if (cat === "volunteer") roles.push("volunteer");
+            else if (cat === "management") roles.push("management");
+            else roles.push("delegate");
+          }
         }
       } catch (e) {
         console.error("[AUTH USER DB ERROR]", e);
-      }
-
-      if (ADMIN_EMAILS.has(email)) {
-        if (!roles.includes("admin")) roles.push("admin");
-        if (!roles.includes("management")) roles.push("management");
-        if (!roles.includes("customer_support")) roles.push("customer_support");
       }
 
       const token = await new SignJWT({
@@ -353,10 +336,6 @@ async function handler(request: Request) {
 
       // Generate JWT session token
       const roles = [role];
-      if (ADMIN_EMAILS.has(email)) {
-        if (!roles.includes("admin")) roles.push("admin");
-        if (!roles.includes("management")) roles.push("management");
-      }
 
       const token = await new SignJWT({
         email,
@@ -471,9 +450,13 @@ async function handler(request: Request) {
         console.error("[ME DB ERROR]", e);
       }
 
-      if (ADMIN_EMAILS.has(email)) {
-        if (!roles.includes("admin")) roles.push("admin");
-        if (!roles.includes("management")) roles.push("management");
+      if (roles.length === 0 && user?.category) {
+        const cat = user.category;
+        if (cat === "customer_support") roles.push("customer_support");
+        else if (cat === "jury_member" || cat === "mentor") roles.push("jury_member");
+        else if (cat === "volunteer") roles.push("volunteer");
+        else if (cat === "management") roles.push("management");
+        else roles.push("delegate");
       }
 
       return Response.json({
@@ -516,6 +499,212 @@ async function handler(request: Request) {
           eventEndsOn: "2026-12-20",
         },
       ]);
+    }
+
+    // ---------------------------------------------------- POST /v1/admin/credentials
+    if (path.includes("/admin/credentials") && method === "POST") {
+      const body = await request.json();
+      const fullName = String(body.fullName || "").trim();
+      const email = String(body.email || "").toLowerCase().trim();
+      const mobile = String(body.mobile || "").trim();
+      const role = String(body.role || "customer_support");
+      const edition = Number(body.edition) || 2026;
+      const password = typeof body.password === "string" && body.password.trim() ? body.password.trim() : "Support@2026!";
+
+      if (!fullName) {
+        return Response.json({ message: "Full name is required" }, { status: 400 });
+      }
+      if (!email && !mobile) {
+        return Response.json({ message: "Email or mobile required" }, { status: 400 });
+      }
+
+      const passwordHash = hashPassword(password);
+      const authSub = email ? `dev|${email}` : `dev|${mobile}`;
+
+      let userId: string;
+      const [existing] = await sql`
+        select id from user_accounts
+        where (email is not null and lower(email) = ${email})
+           or (mobile_e164 is not null and mobile_e164 = ${mobile})
+        limit 1
+      `;
+
+      if (existing) {
+        userId = existing.id;
+        await sql`
+          update user_accounts
+          set auth_subject = ${authSub},
+              full_name = ${fullName},
+              email = coalesce(${email || null}, email),
+              mobile_e164 = coalesce(${mobile || null}, mobile_e164),
+              password_hash = ${passwordHash},
+              status = 'active',
+              updated_at = now()
+          where id = ${userId}
+        `;
+      } else {
+        const [created] = await sql`
+          insert into user_accounts (auth_subject, email, full_name, mobile_e164, password_hash, status)
+          values (${authSub}, ${email || null}, ${fullName}, ${mobile || null}, ${passwordHash}, 'active')
+          returning id
+        `;
+        userId = created.id;
+      }
+
+      // Grant role in role_grants
+      await sql`
+        insert into role_grants (user_id, role, edition_id)
+        values (${userId}, ${role}, ${edition})
+        on conflict do nothing
+      `;
+
+      // Grant edition access
+      await sql`
+        insert into edition_access (user_id, edition_id, source)
+        values (${userId}, ${edition}, 'predefined')
+        on conflict do nothing
+      `;
+
+      // Generate activation token
+      const token = randomBytes(24).toString("base64url");
+      try {
+        await sql`
+          insert into activation_tokens (user_id, token_sha256, expires_at)
+          values (${userId}, ${token}, now() + interval '72 hours')
+        `;
+      } catch {}
+
+      return Response.json({
+        user: {
+          id: userId,
+          email: email || null,
+          fullName,
+          mobile: mobile || null,
+          status: "active",
+          signInLinked: true,
+          createdAt: new Date().toISOString(),
+          activatedAt: new Date().toISOString(),
+          roles: [{ grantId: "grant-1", role, edition, grantedAt: new Date().toISOString() }],
+          editionAccess: [{ edition, source: "predefined" }],
+          activation: null,
+        },
+        activationToken: token,
+        temporaryPassword: password,
+        message: `Credentials created successfully for ${fullName} as ${role.replace(/_/g, " ")}.`,
+      }, { status: 201 });
+    }
+
+    // ---------------------------------------------------- GET /v1/admin/users
+    if (path.includes("/admin/users") && method === "GET" && !path.match(/\/admin\/users\/[^/]+/)) {
+      const q = url.searchParams.get("q")?.toLowerCase().trim() || "";
+      const roleFilter = url.searchParams.get("role") || "";
+      const statusFilter = url.searchParams.get("status") || "";
+      const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
+      const offset = Number(url.searchParams.get("offset")) || 0;
+
+      try {
+        const rows = await sql`
+          select u.id, u.email, u.mobile_e164 as mobile, u.full_name as "fullName", u.status,
+                 (u.auth_subject is not null) as "signInLinked",
+                 u.created_at as "createdAt", u.activated_at as "activatedAt",
+                 u.category, u.team_name as "teamName", u.domain, u.alt_mobile as "altMobile",
+                 u.city, u.state, u.country, u.linkedin_url as "linkedinUrl",
+                 coalesce(json_agg(json_build_object('grantId', r.id::text, 'role', r.role, 'edition', r.edition_id, 'grantedAt', r.granted_at)) filter (where r.role is not null), '[]') as roles
+          from user_accounts u
+          left join role_grants r on r.user_id = u.id and r.revoked_at is null
+          where true
+            ${q ? sql`and (lower(u.full_name) like ${`%${q}%`} or lower(coalesce(u.email, '')) like ${`%${q}%`} or coalesce(u.mobile_e164, '') like ${`%${q}%`} or lower(coalesce(u.team_name, '')) like ${`%${q}%`} or lower(coalesce(u.category, '')) like ${`%${q}%`})` : sql``}
+            ${statusFilter ? sql`and u.status = ${statusFilter}` : sql``}
+            ${roleFilter ? sql`and exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${roleFilter} and g.revoked_at is null)` : sql``}
+          group by u.id
+          order by u.created_at desc
+          limit ${limit} offset ${offset}
+        `;
+
+        const countResult = await sql`
+          select count(*)::int as total from user_accounts u
+          where true
+            ${q ? sql`and (lower(u.full_name) like ${`%${q}%`} or lower(coalesce(u.email, '')) like ${`%${q}%`} or coalesce(u.mobile_e164, '') like ${`%${q}%`} or lower(coalesce(u.team_name, '')) like ${`%${q}%`} or lower(coalesce(u.category, '')) like ${`%${q}%`})` : sql``}
+            ${statusFilter ? sql`and u.status = ${statusFilter}` : sql``}
+            ${roleFilter ? sql`and exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${roleFilter} and g.revoked_at is null)` : sql``}
+        `;
+
+        return Response.json({
+          total: countResult[0]?.total || 0,
+          items: rows.map((r: any) => ({
+            id: r.id,
+            email: r.email,
+            fullName: r.fullName || r.email?.split("@")[0] || "User",
+            mobile: r.mobile,
+            status: r.status,
+            signInLinked: Boolean(r.signInLinked),
+            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+            activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
+            roles: Array.isArray(r.roles) ? r.roles : [],
+            editionAccess: [{ edition: 2026, source: "predefined" }],
+            activation: null,
+            category: r.category || null,
+            teamName: r.teamName || null,
+            domain: r.domain || null,
+            altMobile: r.altMobile || null,
+            city: r.city || null,
+            state: r.state || null,
+            country: r.country || null,
+            linkedinUrl: r.linkedinUrl || null,
+          })),
+        });
+      } catch (err) {
+        console.error("[ADMIN USERS ERROR]", err);
+        return Response.json({ total: 0, items: [] });
+      }
+    }
+
+    // ---------------------------------------------------- GET /v1/admin/users/:id
+    const userDetailMatch = path.match(/\/admin\/users\/([0-9a-fA-F-]+)$/);
+    if (userDetailMatch && method === "GET") {
+      const targetId = userDetailMatch[1];
+      try {
+        const rows = await sql`
+          select u.id, u.email, u.mobile_e164 as mobile, u.full_name as "fullName", u.status,
+                 (u.auth_subject is not null) as "signInLinked",
+                 u.created_at as "createdAt", u.activated_at as "activatedAt",
+                 u.category, u.team_name as "teamName", u.team_members as "teamMembers", u.domain, u.alt_mobile as "altMobile",
+                 u.city, u.state, u.country, u.linkedin_url as "linkedinUrl",
+                 coalesce(json_agg(json_build_object('grantId', r.id::text, 'role', r.role, 'edition', r.edition_id, 'grantedAt', r.granted_at)) filter (where r.role is not null), '[]') as roles
+          from user_accounts u
+          left join role_grants r on r.user_id = u.id and r.revoked_at is null
+          where u.id = ${targetId}
+          group by u.id
+        `;
+        if (rows.length) {
+          const r = rows[0];
+          return Response.json({
+            id: r.id,
+            email: r.email,
+            fullName: r.fullName || r.email?.split("@")[0] || "User",
+            mobile: r.mobile,
+            status: r.status,
+            signInLinked: Boolean(r.signInLinked),
+            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+            activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
+            roles: Array.isArray(r.roles) ? r.roles : [],
+            editionAccess: [{ edition: 2026, source: "predefined" }],
+            activation: null,
+            category: r.category || null,
+            teamName: r.teamName || null,
+            teamMembers: r.teamMembers || null,
+            domain: r.domain || null,
+            altMobile: r.altMobile || null,
+            city: r.city || null,
+            state: r.state || null,
+            country: r.country || null,
+            linkedinUrl: r.linkedinUrl || null,
+          });
+        }
+        return Response.json({ message: "User not found" }, { status: 404 });
+      } catch (err) {
+        return Response.json({ message: (err as Error).message }, { status: 500 });
+      }
     }
 
     // ---------------------------------------------------- Proxy all other routes to Render backend

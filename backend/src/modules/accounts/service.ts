@@ -6,6 +6,7 @@ import { audit } from "../../platform/audit.js";
 import { channelFor, enqueue, TEMPLATES } from "../notifications/outbox.js";
 import { AppError, notFound } from "../../platform/errors.js";
 import { permissionsOf, type Principal } from "../../platform/principal.js";
+import { hashPassword } from "./otp.js";
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -100,6 +101,8 @@ export async function redeemActivation(sql: Sql, p: Principal, token: string, no
 type UserRow = {
   id: string; email: string | null; fullName: string; mobile: string | null; status: AccountStatus; signInLinked: boolean;
   createdAt: Date; activatedAt: Date | null; total?: number;
+  category?: string | null; teamName?: string | null; domain?: string | null;
+  altMobile?: string | null; city?: string | null; state?: string | null; country?: string | null; linkedinUrl?: string | null;
 };
 
 async function hydrate(db: Db, rows: UserRow[]): Promise<AdminUser[]> {
@@ -122,19 +125,28 @@ async function hydrate(db: Db, rows: UserRow[]): Promise<AdminUser[]> {
       roles: grants.filter((g) => g.userId === r.id).map(({ grantId, role, edition, grantedAt }) => ({ grantId, role, edition, grantedAt: grantedAt.toISOString() })),
       editionAccess: access.filter((a) => a.userId === r.id).map(({ edition, source }) => ({ edition, source })),
       activation: t ? { issuedAt: t.issuedAt.toISOString(), expiresAt: t.expiresAt.toISOString() } : null,
+      category: r.category ?? null,
+      teamName: r.teamName ?? null,
+      domain: r.domain ?? null,
+      altMobile: r.altMobile ?? null,
+      city: r.city ?? null,
+      state: r.state ?? null,
+      country: r.country ?? null,
+      linkedinUrl: r.linkedinUrl ?? null,
     };
   });
 }
 
 const USER_COLS = (db: Db) => db`u.id, u.email, u.full_name as "fullName", u.mobile_e164 as mobile, u.status,
-  (u.auth_subject is not null) as "signInLinked", u.created_at as "createdAt", u.activated_at as "activatedAt"`;
+  (u.auth_subject is not null) as "signInLinked", u.created_at as "createdAt", u.activated_at as "activatedAt",
+  u.category, u.team_name as "teamName", u.domain, u.alt_mobile as "altMobile", u.city, u.state, u.country, u.linkedin_url as "linkedinUrl"`;
 
 export async function listUsers(db: Db, f: { q?: string; role?: Role; status?: AccountStatus; limit: number; offset: number }): Promise<AdminUserList> {
   const like = f.q ? `%${f.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
   const rows = await db<UserRow[]>`
     select ${USER_COLS(db)}, count(*) over ()::int as total from user_accounts u
     where true
-      ${like ? db`and (u.full_name ilike ${like} or u.email ilike ${like} or u.mobile_e164 ilike ${like})` : db``}
+      ${like ? db`and (u.full_name ilike ${like} or u.email ilike ${like} or u.mobile_e164 ilike ${like} or u.team_name ilike ${like} or u.category ilike ${like})` : db``}
       ${f.status ? db`and u.status = ${f.status}` : db``}
       ${f.role ? db`and exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${f.role} and g.revoked_at is null)` : db``}
     order by u.created_at desc, u.id limit ${f.limit} offset ${f.offset}`;
@@ -224,16 +236,20 @@ export async function createCredential(
     mobile?: string | null;
     role: Role;
     edition?: number | null;
+    password?: string | null;
   },
   ttlHours: number,
   now: Date,
-): Promise<{ user: AdminUser; activationToken: string | null; message: string }> {
+): Promise<{ user: AdminUser; activationToken: string | null; temporaryPassword?: string; message: string }> {
   const normEmail = data.email ? data.email.trim().toLowerCase() : null;
   const normMobile = data.mobile ? normaliseMobile(data.mobile) : null;
   if (!normEmail && !normMobile) {
     throw new AppError(400, "missing_identifier", "Email or mobile required", "Provide at least an email or mobile number.");
   }
   const edition = data.edition ?? 2026;
+  const finalPassword = data.password && data.password.trim() ? data.password.trim() : `Support@2026!`;
+  const passwordHash = hashPassword(finalPassword);
+  const authSub = normEmail ? `dev|${normEmail}` : (normMobile ? `dev|${normMobile}` : null);
 
   const result = await sql.begin(async (tx) => {
     let user = normEmail
@@ -246,8 +262,8 @@ export async function createCredential(
     let userId: string;
     if (!user) {
       const [created] = await tx<{ id: string }[]>`
-        insert into user_accounts (full_name, email, mobile_e164, status)
-        values (${data.fullName.trim()}, ${normEmail}, ${normMobile}, 'active')
+        insert into user_accounts (auth_subject, full_name, email, mobile_e164, status, password_hash)
+        values (${authSub}, ${data.fullName.trim()}, ${normEmail}, ${normMobile}, 'active', ${passwordHash})
         returning id`;
       userId = created!.id;
       await audit(tx, {
@@ -256,6 +272,13 @@ export async function createCredential(
       });
     } else {
       userId = user.id;
+      await tx`
+        update user_accounts
+        set password_hash = coalesce(${passwordHash}, password_hash),
+            auth_subject = coalesce(${authSub}, auth_subject),
+            status = 'active',
+            updated_at = ${now}
+        where id = ${userId}`;
     }
 
     // Grant role if not already active
@@ -295,6 +318,7 @@ export async function createCredential(
   return {
     user,
     activationToken: result.token,
+    temporaryPassword: finalPassword,
     message: `Credentials created successfully for ${data.fullName} as ${data.role.replace(/_/g, " ")}.`,
   };
 }

@@ -23,12 +23,13 @@ function Users() {
   const [data, setData] = useState<AdminUserList | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Create credentials for Jury member, Delegate, or other roles
+  // Create credentials for Jury member, Delegate, Customer Support, Staff, etc.
   const [showCreate, setShowCreate] = useState(false);
   const [newFullName, setNewFullName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newMobile, setNewMobile] = useState("");
-  const [newRole, setNewRole] = useState<Role>("jury_member");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<Role>("customer_support");
   const [newEdition, setNewEdition] = useState("2026");
   const [createResult, setCreateResult] = useState<AdminCreateCredentialResponse | null>(null);
   const [createBusy, setCreateBusy] = useState(false);
@@ -59,6 +60,7 @@ function Users() {
         fullName: newFullName.trim(),
         email: newEmail.trim() || undefined,
         mobile: newMobile.trim() || undefined,
+        password: newPassword.trim() || undefined,
         role: newRole,
         edition: Number(newEdition) || 2026,
       });
@@ -66,6 +68,7 @@ function Users() {
       setNewFullName("");
       setNewEmail("");
       setNewMobile("");
+      setNewPassword("");
       void load();
     } catch (err) {
       setCreateError((err as Error).message || "Failed to create credentials");
@@ -76,8 +79,23 @@ function Users() {
 
   function copyCredentials() {
     if (!createResult) return;
-    const text = `Udbhav - Startup Jathara Credentials\nName: ${createResult.user.fullName}\nRole: ${createResult.user.roles.map((r) => r.role).join(", ")}\nEmail: ${createResult.user.email ?? "N/A"}\nMobile: ${createResult.user.mobile ?? "N/A"}\nActivation Code: ${createResult.activationToken ?? "Direct Access via Email Sign-in"}\nSign-in URL: ${typeof window !== "undefined" ? window.location.origin.replace("4001", "3000") : "https://startupjathara.org"}/signin`;
-    navigator.clipboard.writeText(text);
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://isf-test-sb9i.vercel.app";
+    const roleNames = createResult.user.roles.map((r) => r.role).join(", ");
+    const isSupport = roleNames.includes("customer_support");
+    const dashboardUrl = isSupport ? `${origin}/support` : `${origin}/dashboard`;
+    const lines = [
+      `Udbhav / ISF Platform Credentials`,
+      `Name: ${createResult.user.fullName}`,
+      `Role: ${roleNames}`,
+      `Login Email: ${createResult.user.email ?? "N/A"}`,
+      `Mobile: ${createResult.user.mobile ?? "N/A"}`,
+      createResult.temporaryPassword ? `Password: ${createResult.temporaryPassword}` : null,
+      createResult.activationToken ? `Activation Token: ${createResult.activationToken}` : null,
+      `Sign-in URL: ${origin}/login`,
+      `Dedicated Dashboard: ${dashboardUrl}`,
+    ].filter(Boolean).join("\n");
+
+    navigator.clipboard.writeText(lines);
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   }
@@ -93,83 +111,98 @@ function Users() {
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <h1>Accounts & Credentials</h1>
+        <div>
+          <h1 style={{ margin: "0 0 4px" }}>Accounts & Platform Users</h1>
+          <p className="muted small" style={{ margin: 0 }}>
+            Inspect all users registered across the platform (Startups, Support, Jury, Delegates, Volunteers).
+          </p>
+        </div>
         {can(me, "role.assign") && (
           <button className="btn btn-primary" onClick={() => { setShowCreate(!showCreate); setCreateResult(null); }}>
-            {showCreate ? "Close Form" : "+ Create Credentials (Jury / Delegate / Staff)"}
+            {showCreate ? "Close Form" : "+ Create Credentials (Support / Staff / Jury)"}
           </button>
         )}
       </div>
 
       {showCreate && (
-        <section className="card" style={{ margin: "16px 0 24px", borderColor: "var(--accent)" }}>
-          <h2 style={{ marginTop: 0 }}>Create Participant / Staff Credentials</h2>
+        <section className="card" style={{ margin: "16px 0 24px", borderColor: "var(--accent)", background: "#fafafa" }}>
+          <h2 style={{ marginTop: 0 }}>Issue User & Staff Credentials</h2>
           <p className="muted small">
-            Admin can directly issue credentials for <strong>Jury Members</strong>, <strong>Delegates</strong>, and other event participants.
+            Admin can directly create accounts with custom or auto-generated passwords for <strong>Customer Support</strong>, <strong>Jury Members</strong>, <strong>Staff</strong>, and other roles.
           </p>
           <form onSubmit={handleCreateCredential} style={{ display: "grid", gap: 14 }}>
             <div className="two">
               <label>Full Name *
-                <input type="text" required placeholder="e.g. Dr. Priya Sharma" value={newFullName} onChange={(e) => setNewFullName(e.target.value)} />
+                <input type="text" required placeholder="e.g. Ramesh Kumar (Support Desk)" value={newFullName} onChange={(e) => setNewFullName(e.target.value)} />
               </label>
               <label>Role to Grant *
                 <select value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}>
-                  <option value="jury_member">Jury Member (Evaluations & Pitch Scoring)</option>
-                  <option value="delegate">Delegate (VIP / Attendee)</option>
-                  <option value="customer_support">Customer Support (Help Desk)</option>
-                  <option value="volunteer">Volunteer (Participant Support)</option>
+                  <option value="customer_support">Customer Support (Help Desk & Tickets)</option>
+                  <option value="jury_member">Jury Member (Pitch Scoring & Evaluations)</option>
                   <option value="management">Management Team (Evaluations & Approvals)</option>
                   <option value="admin">Administrator (Full Console Access)</option>
+                  <option value="volunteer">Volunteer (Participant Support)</option>
+                  <option value="delegate">Delegate (VIP / Attendee)</option>
                   <option value="startup_team_leader">Startup Team Leader</option>
                   <option value="startup_team_member">Startup Team Member</option>
                 </select>
               </label>
             </div>
             <div className="two">
-              <label>Email Address
-                <input type="email" placeholder="jury.member@example.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+              <label>Login Email Address *
+                <input type="email" required placeholder="support.agent@udbhav.org" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
               </label>
               <label>Mobile Number
                 <input type="tel" placeholder="+91 98765 43210" value={newMobile} onChange={(e) => setNewMobile(e.target.value)} />
               </label>
             </div>
             <div className="two">
+              <label>Password (Leave blank to auto-generate)
+                <input type="text" placeholder="e.g. Support@2026 or leave blank" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              </label>
               <label>Event Edition
                 <select value={newEdition} onChange={(e) => setNewEdition(e.target.value)}>
                   <option value="2026">Startup Jathara 2026</option>
                   <option value="2027">Startup Jathara 2027</option>
                 </select>
               </label>
-              <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <button type="submit" className="btn btn-primary" disabled={createBusy} style={{ width: "100%", height: 42 }}>
-                  {createBusy ? "Creating Credentials..." : "Generate & Issue Credentials"}
-                </button>
-              </div>
+            </div>
+            <div>
+              <button type="submit" className="btn btn-primary" disabled={createBusy} style={{ minWidth: 240, height: 42 }}>
+                {createBusy ? "Creating Credentials..." : "Generate & Issue Credentials"}
+              </button>
             </div>
             {createError && <p className="notice notice-error" role="alert">{createError}</p>}
           </form>
 
           {createResult && (
-            <div className="notice notice-ok" style={{ marginTop: 16 }}>
-              <h3 style={{ margin: "0 0 6px" }}>{createResult.message}</h3>
-              <p style={{ margin: "0 0 6px" }}>
-                <strong>Account:</strong> {createResult.user.fullName} ({createResult.user.email ?? createResult.user.mobile})
-              </p>
-              <p style={{ margin: "0 0 6px" }}>
-                <strong>Role:</strong> {createResult.user.roles.map((r) => r.role).join(", ")}
-              </p>
-              {createResult.activationToken ? (
-                <p style={{ margin: "0 0 10px" }}>
-                  <strong>Activation Token / Credential:</strong> <code>{createResult.activationToken}</code>
-                </p>
-              ) : (
-                <p style={{ margin: "0 0 10px" }} className="muted small">
-                  An activation code has been automated to their email/mobile. They can log in directly using their email or mobile.
-                </p>
-              )}
-              <button type="button" className="btn btn-sm" onClick={copyCredentials}>
-                {copied ? "✓ Credentials Copied!" : "Copy Credentials Text"}
-              </button>
+            <div className="notice notice-ok" style={{ marginTop: 16, background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: 16 }}>
+              <h3 style={{ margin: "0 0 8px", color: "#166534" }}>✓ {createResult.message}</h3>
+              <div style={{ display: "grid", gap: 6, fontSize: "0.95rem" }}>
+                <div><strong>Account Name:</strong> {createResult.user.fullName}</div>
+                <div><strong>Login Email:</strong> <code>{createResult.user.email}</code></div>
+                {createResult.user.mobile && <div><strong>Mobile:</strong> {createResult.user.mobile}</div>}
+                <div><strong>Assigned Roles:</strong> {createResult.user.roles.map((r) => r.role).join(", ")}</div>
+                {createResult.temporaryPassword && (
+                  <div style={{ background: "#fef3c7", padding: "8px 12px", borderRadius: 6, margin: "6px 0", border: "1px solid #fde68a" }}>
+                    <strong>Login Password:</strong> <code style={{ fontSize: "1.15rem", fontWeight: 700, color: "#b45309" }}>{createResult.temporaryPassword}</code>
+                    <span className="muted small" style={{ display: "block", marginTop: 2 }}>Please share this password with the user. They can log in immediately.</span>
+                  </div>
+                )}
+                {createResult.activationToken && (
+                  <div><strong>Activation Token:</strong> <code>{createResult.activationToken}</code></div>
+                )}
+                {createResult.user.roles.some((r) => r.role === "customer_support") && (
+                  <div style={{ color: "#1e40af", fontSize: "0.85rem", marginTop: 4 }}>
+                    ℹ This user has the <strong>Customer Support</strong> role and will automatically land on the Support Help Desk dashboard upon login.
+                  </div>
+                )}
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <button type="button" className="btn btn-primary btn-sm" onClick={copyCredentials}>
+                  {copied ? "✓ Copied to Clipboard!" : "Copy Full Credentials"}
+                </button>
+              </div>
             </div>
           )}
         </section>
@@ -177,43 +210,106 @@ function Users() {
 
       <form className="toolbar" onSubmit={(e) => { e.preventDefault(); go({ q: text.trim(), offset: "0" }); }}>
         <label>Search
-          <input type="text" placeholder="Name, email or mobile" value={text} onChange={(e) => setText(e.target.value)} />
+          <input type="text" placeholder="Name, email, mobile, or team" value={text} onChange={(e) => setText(e.target.value)} />
         </label>
         <label>Role
           <select value={role} onChange={(e) => go({ role: e.target.value, offset: "0" })}>
-            <option value="">Any</option>
+            <option value="">Any Role</option>
             {ROLES.map((r) => <option key={r} value={r}>{label(r)}</option>)}
           </select>
         </label>
         <label>Status
           <select value={status} onChange={(e) => go({ status: e.target.value, offset: "0" })}>
-            <option value="">Any</option>
+            <option value="">Any Status</option>
             {ACCOUNT_STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
           </select>
         </label>
-        <button className="btn btn-sm">Search</button>
+        <button className="btn btn-sm">Filter</button>
       </form>
       {error && <p className="notice notice-error" role="alert">{error}</p>}
       {data && (data.items.length === 0 ? <p className="muted">No accounts match.</p> : (
         <>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th>Contact</th><th>Roles</th><th>Status</th><th>Created (IST)</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>User & Track</th>
+                  <th>Contact & Location</th>
+                  <th>Startup / Team / Domain</th>
+                  <th>Roles</th>
+                  <th>Status</th>
+                  <th>Registered (IST)</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
               <tbody>
                 {data.items.map((u) => (
                   <tr key={u.id}>
-                    <td><Link href={`/users/${u.id}`}><strong>{u.fullName}</strong></Link></td>
-                    <td className="small">{u.email ?? "—"}<br />{u.mobile ?? ""}</td>
-                    <td className="small">{u.roles.map((r) => `${label(r.role)}${r.edition ? ` (${r.edition})` : ""}`).join(", ") || "—"}</td>
-                    <td><span className={`status status-${u.status}`}>{label(u.status)}</span></td>
+                    <td>
+                      <Link href={`/users/${u.id}`} style={{ fontWeight: 600, color: "var(--accent)" }}>
+                        {u.fullName}
+                      </Link>
+                      {u.category && (
+                        <div style={{ marginTop: 4 }}>
+                          <span style={{ fontSize: "0.75rem", background: "#e0e7ff", color: "#3730a3", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
+                            {label(u.category)}
+                          </span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="small">
+                      <div><strong>✉</strong> {u.email ?? "—"}</div>
+                      {u.mobile && <div><strong>✆</strong> {u.mobile}</div>}
+                      {(u.city || u.state || u.country) && (
+                        <div className="muted" style={{ fontSize: "0.75rem", marginTop: 2 }}>
+                          📍 {[u.city, u.state, u.country].filter(Boolean).join(", ")}
+                        </div>
+                      )}
+                    </td>
+                    <td className="small">
+                      {u.teamName ? (
+                        <div>
+                          <strong>{u.teamName}</strong>
+                          {u.domain && <div className="muted" style={{ fontSize: "0.75rem" }}>Domain: {u.domain}</div>}
+                          {u.teamMembers && <div className="muted" style={{ fontSize: "0.72rem" }}>Members: {u.teamMembers}</div>}
+                        </div>
+                      ) : u.domain ? (
+                        <div>Domain: {u.domain}</div>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                      {u.linkedinUrl && (
+                        <div style={{ marginTop: 3 }}>
+                          <a href={u.linkedinUrl.startsWith("http") ? u.linkedinUrl : `https://${u.linkedinUrl}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.75rem", color: "#0284c7" }}>
+                            LinkedIn ↗
+                          </a>
+                        </div>
+                      )}
+                    </td>
+                    <td className="small">
+                      {u.roles.map((r) => (
+                        <span key={r.grantId || r.role} style={{ display: "inline-block", margin: "2px 2px", padding: "2px 6px", background: "#f1f5f9", borderRadius: 4, fontSize: "0.75rem" }}>
+                          {label(r.role)}{r.edition ? ` (${r.edition})` : ""}
+                        </span>
+                      ))}
+                      {u.roles.length === 0 && <span className="muted">—</span>}
+                    </td>
+                    <td>
+                      <span className={`status status-${u.status}`}>{label(u.status)}</span>
+                    </td>
                     <td className="small">{formatIst(u.createdAt)}</td>
+                    <td>
+                      <Link href={`/users/${u.id}`} className="btn btn-sm">
+                        View
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="actions">
-            <span className="muted small">{offset + 1}–{offset + data.items.length} of {data.total}</span>
+          <div className="actions" style={{ marginTop: 16 }}>
+            <span className="muted small">{offset + 1}–{offset + data.items.length} of {data.total} registered users</span>
             <button className="btn btn-sm" disabled={offset === 0} onClick={() => go({ offset: String(Math.max(0, offset - PAGE)) })}>Previous</button>
             <button className="btn btn-sm" disabled={offset + PAGE >= data.total} onClick={() => go({ offset: String(offset + PAGE) })}>Next</button>
           </div>

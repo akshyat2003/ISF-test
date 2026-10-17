@@ -530,9 +530,18 @@ export const AdminUser = z.object({
   signInLinked: z.boolean(),
   createdAt: z.string(),
   activatedAt: z.string().nullable(),
-  roles: z.array(z.object({ grantId: z.string(), role: z.enum(ROLES), edition: z.number().int().nullable(), grantedAt: z.string() })),
-  editionAccess: z.array(z.object({ edition: z.number().int(), source: z.enum(["predefined", "selected"]) })),
-  activation: z.object({ issuedAt: z.string(), expiresAt: z.string() }).nullable(),
+  roles: z.array(z.object({ grantId: z.string().optional(), role: z.enum(ROLES), edition: z.number().int().nullable().optional(), grantedAt: z.string().optional() })),
+  editionAccess: z.array(z.object({ edition: z.number().int(), source: z.enum(["predefined", "selected"]) })).optional().default([]),
+  activation: z.object({ issuedAt: z.string(), expiresAt: z.string() }).nullable().optional(),
+  category: z.string().nullable().optional(),
+  teamName: z.string().nullable().optional(),
+  teamMembers: z.string().nullable().optional(),
+  domain: z.string().nullable().optional(),
+  altMobile: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  state: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  linkedinUrl: z.string().nullable().optional(),
 });
 export type AdminUser = z.infer<typeof AdminUser>;
 
@@ -559,12 +568,14 @@ export const AdminCreateCredentialRequest = z.object({
   mobile: z.string().trim().optional(),
   role: z.enum(ROLES),
   edition: z.number().int().min(2026).max(2100).nullable().optional(),
+  password: z.string().trim().min(6).optional(),
 });
 export type AdminCreateCredentialRequest = z.infer<typeof AdminCreateCredentialRequest>;
 
 export const AdminCreateCredentialResponse = z.object({
   user: AdminUser,
   activationToken: z.string().nullable(),
+  temporaryPassword: z.string().optional(),
   message: z.string(),
 });
 export type AdminCreateCredentialResponse = z.infer<typeof AdminCreateCredentialResponse>;

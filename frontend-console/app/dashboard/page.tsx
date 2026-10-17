@@ -12,9 +12,9 @@ export default function DashboardPage() {
   // 10-minute silent session inactivity timeout tracking
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [stats, setStats] = useState({
-    applications: "12",
-    tickets: "3",
-    users: "6",
+    applications: "—",
+    tickets: "—",
+    users: "—",
     ranking: "Ready",
   });
   const [backendHealth, setBackendHealth] = useState<"checking" | "online" | "degraded">("checking");
@@ -80,12 +80,14 @@ export default function DashboardPage() {
         .catch(() => {});
     }
 
-    if (me && can(me, "user.read")) {
+    if (me && (can(me, "user.read") || me?.roles.includes("admin"))) {
       api.admin
         .users({ limit: 50 })
         .then((u: any) => {
-          if (u?.users) {
-            setStats((prev) => ({ ...prev, users: String(u.users.length) }));
+          if (u?.total !== undefined) {
+            setStats((prev) => ({ ...prev, users: String(u.total) }));
+          } else if (u?.items) {
+            setStats((prev) => ({ ...prev, users: String(u.items.length) }));
           }
         })
         .catch(() => {});
@@ -98,9 +100,7 @@ export default function DashboardPage() {
     return null;
   }
 
-  const ADMIN_EMAILS = ["akshatrajpati@gmail.com", "arushkumar450@gmail.com", "sarangeeamartya@gmail.com"];
-  const isDirectAdmin = email ? ADMIN_EMAILS.includes(email.toLowerCase()) : false;
-  const isAdmin = isDirectAdmin || me?.roles.includes("admin") || me?.roles.includes("management");
+  const isAdmin = me?.roles.includes("admin") || me?.roles.includes("management");
   const isSupport = me?.roles.includes("customer_support");
 
   return (

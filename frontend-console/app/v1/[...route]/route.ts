@@ -28,12 +28,6 @@ function getSql() {
 type StoredOtp = { code: string; expiresAt: number; attempts: number };
 const otpStore = new Map<string, StoredOtp>();
 
-const ADMIN_EMAILS = new Set([
-  "sarangeeamartya@gmail.com",
-  "arushkumar450@gmail.com",
-  "akshatrajpati@gmail.com",
-]);
-
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
   const derivedKey = scryptSync(password, salt, 64);
@@ -75,9 +69,48 @@ const ALL_ADMIN_PERMISSIONS = [
   "evaluation.review", "evaluation.submit", "import.manage", "jury.assign", "jury.manage",
   "jury.read_own", "notice.publish", "notice.read_all", "ranking.read", "ranking.run",
   "rubric.approve", "rubric.create", "rubric.read", "slot.manage", "startup.create",
-  "startup.update_own", "support.admin", "support.escalate", "support.handle", "user.manage",
-  "user.read", "volunteer.assign", "volunteer.manage", "volunteer.read_own"
+  "startup.update_own", "support.admin", "support.escalate", "support.handle", "support.alerts",
+  "support.review", "user.manage", "user.read", "role.assign", "volunteer.assign", "volunteer.manage", "volunteer.read_own"
 ];
+
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  admin: ALL_ADMIN_PERMISSIONS,
+  management: [
+    "application.read_all", "evaluation.read_all", "evaluation.review", "ranking.read",
+    "decision.draft", "decision.release", "support.review", "support.handle", "support.alerts",
+    "user.read", "notice.publish", "notice.read_all", "content.manage", "rubric.approve", "rubric.read"
+  ],
+  customer_support: [
+    "support.handle", "support.alerts", "support.review"
+  ],
+  jury_member: [
+    "evaluation.submit", "evaluation.review", "jury.read_own", "rubric.read"
+  ],
+  volunteer: [
+    "volunteer.read_own"
+  ],
+  startup_team_leader: [
+    "startup.update_own", "application.read_own", "application.withdraw_own"
+  ],
+  startup_team_member: [
+    "application.read_own"
+  ],
+  delegate: []
+};
+
+function getPermissionsForRoles(roles: string[]): string[] {
+  if (roles.includes("admin")) {
+    return ALL_ADMIN_PERMISSIONS;
+  }
+  const perms = new Set<string>();
+  for (const r of roles) {
+    const list = ROLE_PERMISSIONS[r];
+    if (list) {
+      for (const p of list) perms.add(p);
+    }
+  }
+  return Array.from(perms);
+}
 
 async function handler(request: Request) {
   const url = new URL(request.url);
@@ -194,34 +227,22 @@ async function handler(request: Request) {
         const userRows = await sql`select id, status from user_accounts where lower(email) = ${email}`;
         userId = userRows[0]?.id ?? null;
 
-        if (!userId && ADMIN_EMAILS.has(email)) {
-          const defaultName = email.split("@")[0] || "Admin";
-          const [created] = await sql`
-            insert into user_accounts (auth_subject, email, full_name, status)
-            values (${authSub}, ${email}, ${defaultName}, 'active')
-            on conflict (lower(email)) where email is not null do update
-            set status = 'active'
-            returning id
-          `;
-          userId = created?.id;
-          await sql`insert into role_grants (user_id, role) values (${userId}, 'admin'), (${userId}, 'management'), (${userId}, 'customer_support') on conflict do nothing`;
-          await sql`insert into edition_access (user_id, edition_id, source) values (${userId}, 2026, 'predefined') on conflict do nothing`;
-        }
-
         if (userId) {
           const roleRows = await sql`
             select role from role_grants where user_id = ${userId} and revoked_at is null
           `;
           roles = roleRows.map((r: any) => r.role);
+          if (roles.length === 0 && userRows[0]?.category) {
+            const cat = userRows[0].category;
+            if (cat === "customer_support") roles.push("customer_support");
+            else if (cat === "jury_member" || cat === "mentor") roles.push("jury_member");
+            else if (cat === "volunteer") roles.push("volunteer");
+            else if (cat === "management") roles.push("management");
+            else roles.push("delegate");
+          }
         }
       } catch (e) {
         console.error("[AUTH USER DB ERROR]", e);
-      }
-
-      if (ADMIN_EMAILS.has(email)) {
-        if (!roles.includes("admin")) roles.push("admin");
-        if (!roles.includes("management")) roles.push("management");
-        if (!roles.includes("customer_support")) roles.push("customer_support");
       }
 
       const token = await new SignJWT({
@@ -353,10 +374,6 @@ async function handler(request: Request) {
 
       // Generate JWT session token
       const roles = [role];
-      if (ADMIN_EMAILS.has(email)) {
-        if (!roles.includes("admin")) roles.push("admin");
-        if (!roles.includes("management")) roles.push("management");
-      }
 
       const token = await new SignJWT({
         email,
@@ -471,14 +488,18 @@ async function handler(request: Request) {
         console.error("[ME DB ERROR]", e);
       }
 
-      if (ADMIN_EMAILS.has(email)) {
-        if (!roles.includes("admin")) roles.push("admin");
-        if (!roles.includes("management")) roles.push("management");
+      if (roles.length === 0 && user?.category) {
+        const cat = user.category;
+        if (cat === "customer_support") roles.push("customer_support");
+        else if (cat === "jury_member" || cat === "mentor") roles.push("jury_member");
+        else if (cat === "volunteer") roles.push("volunteer");
+        else if (cat === "management") roles.push("management");
+        else roles.push("delegate");
       }
 
       return Response.json({
         account: {
-          id: user?.id || "admin-fallback-id",
+          id: user?.id || "fallback-id",
           email: user?.email || email,
           fullName: user?.full_name || email.split("@")[0],
           mobile: user?.mobile_e164 || "",
@@ -486,7 +507,7 @@ async function handler(request: Request) {
         },
         roles,
         editionAccess: [2026],
-        permissions: ALL_ADMIN_PERMISSIONS,
+        permissions: getPermissionsForRoles(roles),
         mfaRequired: false,
       });
     }
@@ -516,6 +537,375 @@ async function handler(request: Request) {
           eventEndsOn: "2026-12-20",
         },
       ]);
+    }
+
+    // ---------------------------------------------------- POST /v1/admin/credentials
+    if (path.includes("/admin/credentials") && method === "POST") {
+      const body = await request.json();
+      const fullName = String(body.fullName || "").trim();
+      const email = String(body.email || "").toLowerCase().trim();
+      const mobile = String(body.mobile || "").trim();
+      const role = String(body.role || "customer_support");
+      const edition = Number(body.edition) || 2026;
+      const password = typeof body.password === "string" && body.password.trim() ? body.password.trim() : "Support@2026!";
+
+      if (!fullName) {
+        return Response.json({ message: "Full name is required" }, { status: 400 });
+      }
+      if (!email && !mobile) {
+        return Response.json({ message: "Email or mobile required" }, { status: 400 });
+      }
+
+      const passwordHash = hashPassword(password);
+      const authSub = email ? `dev|${email}` : `dev|${mobile}`;
+
+      let userId: string;
+      const [existing] = await sql`
+        select id from user_accounts
+        where (email is not null and lower(email) = ${email})
+           or (mobile_e164 is not null and mobile_e164 = ${mobile})
+        limit 1
+      `;
+
+      if (existing) {
+        userId = existing.id;
+        await sql`
+          update user_accounts
+          set auth_subject = ${authSub},
+              full_name = ${fullName},
+              email = coalesce(${email || null}, email),
+              mobile_e164 = coalesce(${mobile || null}, mobile_e164),
+              password_hash = ${passwordHash},
+              status = 'active',
+              updated_at = now()
+          where id = ${userId}
+        `;
+      } else {
+        const [created] = await sql`
+          insert into user_accounts (auth_subject, email, full_name, mobile_e164, password_hash, status)
+          values (${authSub}, ${email || null}, ${fullName}, ${mobile || null}, ${passwordHash}, 'active')
+          returning id
+        `;
+        userId = created.id;
+      }
+
+      // Grant role in role_grants
+      await sql`
+        insert into role_grants (user_id, role, edition_id)
+        values (${userId}, ${role}, ${edition})
+        on conflict do nothing
+      `;
+
+      // Grant edition access
+      await sql`
+        insert into edition_access (user_id, edition_id, source)
+        values (${userId}, ${edition}, 'predefined')
+        on conflict do nothing
+      `;
+
+      // Generate activation token
+      const token = randomBytes(24).toString("base64url");
+      try {
+        await sql`
+          insert into activation_tokens (user_id, token_sha256, expires_at)
+          values (${userId}, ${token}, now() + interval '72 hours')
+        `;
+      } catch {}
+
+      return Response.json({
+        user: {
+          id: userId,
+          email: email || null,
+          fullName,
+          mobile: mobile || null,
+          status: "active",
+          signInLinked: true,
+          createdAt: new Date().toISOString(),
+          activatedAt: new Date().toISOString(),
+          roles: [{ grantId: "grant-1", role, edition, grantedAt: new Date().toISOString() }],
+          editionAccess: [{ edition, source: "predefined" }],
+          activation: null,
+        },
+        activationToken: token,
+        temporaryPassword: password,
+        message: `Credentials created successfully for ${fullName} as ${role.replace(/_/g, " ")}.`,
+      }, { status: 201 });
+    }
+
+    // ---------------------------------------------------- GET /v1/admin/users
+    if (path.includes("/admin/users") && method === "GET" && !path.match(/\/admin\/users\/[^/]+/)) {
+      const q = url.searchParams.get("q")?.toLowerCase().trim() || "";
+      const roleFilter = url.searchParams.get("role") || "";
+      const statusFilter = url.searchParams.get("status") || "";
+      const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
+      const offset = Number(url.searchParams.get("offset")) || 0;
+
+      try {
+        const rows = await sql`
+          select u.id, u.email, u.mobile_e164 as mobile, u.full_name as "fullName", u.status,
+                 (u.auth_subject is not null) as "signInLinked",
+                 u.created_at as "createdAt", u.activated_at as "activatedAt",
+                 u.category, u.team_name as "teamName", u.domain, u.alt_mobile as "altMobile",
+                 u.city, u.state, u.country, u.linkedin_url as "linkedinUrl",
+                 coalesce(json_agg(json_build_object('grantId', r.id::text, 'role', r.role, 'edition', r.edition_id, 'grantedAt', r.granted_at)) filter (where r.role is not null), '[]') as roles
+          from user_accounts u
+          left join role_grants r on r.user_id = u.id and r.revoked_at is null
+          where true
+            ${q ? sql`and (lower(u.full_name) like ${`%${q}%`} or lower(coalesce(u.email, '')) like ${`%${q}%`} or coalesce(u.mobile_e164, '') like ${`%${q}%`} or lower(coalesce(u.team_name, '')) like ${`%${q}%`} or lower(coalesce(u.category, '')) like ${`%${q}%`})` : sql``}
+            ${statusFilter ? sql`and u.status = ${statusFilter}` : sql``}
+            ${roleFilter ? sql`and exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${roleFilter} and g.revoked_at is null)` : sql``}
+          group by u.id
+          order by u.created_at desc
+          limit ${limit} offset ${offset}
+        `;
+
+        const countResult = await sql`
+          select count(*)::int as total from user_accounts u
+          where true
+            ${q ? sql`and (lower(u.full_name) like ${`%${q}%`} or lower(coalesce(u.email, '')) like ${`%${q}%`} or coalesce(u.mobile_e164, '') like ${`%${q}%`} or lower(coalesce(u.team_name, '')) like ${`%${q}%`} or lower(coalesce(u.category, '')) like ${`%${q}%`})` : sql``}
+            ${statusFilter ? sql`and u.status = ${statusFilter}` : sql``}
+            ${roleFilter ? sql`and exists (select 1 from role_grants g where g.user_id = u.id and g.role = ${roleFilter} and g.revoked_at is null)` : sql``}
+        `;
+
+        return Response.json({
+          total: countResult[0]?.total || 0,
+          items: rows.map((r: any) => ({
+            id: r.id,
+            email: r.email,
+            fullName: r.fullName || r.email?.split("@")[0] || "User",
+            mobile: r.mobile,
+            status: r.status,
+            signInLinked: Boolean(r.signInLinked),
+            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+            activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
+            roles: Array.isArray(r.roles) ? r.roles : [],
+            editionAccess: [{ edition: 2026, source: "predefined" }],
+            activation: null,
+            category: r.category || null,
+            teamName: r.teamName || null,
+            domain: r.domain || null,
+            altMobile: r.altMobile || null,
+            city: r.city || null,
+            state: r.state || null,
+            country: r.country || null,
+            linkedinUrl: r.linkedinUrl || null,
+          })),
+        });
+      } catch (err) {
+        console.error("[ADMIN USERS ERROR]", err);
+        return Response.json({ total: 0, items: [] });
+      }
+    }
+
+    // ---------------------------------------------------- GET /v1/admin/users/:id
+    const userDetailMatch = path.match(/\/admin\/users\/([0-9a-fA-F-]+)$/);
+    if (userDetailMatch && method === "GET") {
+      const targetId = userDetailMatch[1];
+      try {
+        const rows = await sql`
+          select u.id, u.email, u.mobile_e164 as mobile, u.full_name as "fullName", u.status,
+                 (u.auth_subject is not null) as "signInLinked",
+                 u.created_at as "createdAt", u.activated_at as "activatedAt",
+                 u.category, u.team_name as "teamName", u.team_members as "teamMembers", u.domain, u.alt_mobile as "altMobile",
+                 u.city, u.state, u.country, u.linkedin_url as "linkedinUrl",
+                 coalesce(json_agg(json_build_object('grantId', r.id::text, 'role', r.role, 'edition', r.edition_id, 'grantedAt', r.granted_at)) filter (where r.role is not null), '[]') as roles
+          from user_accounts u
+          left join role_grants r on r.user_id = u.id and r.revoked_at is null
+          where u.id = ${targetId}
+          group by u.id
+        `;
+        if (rows.length) {
+          const r = rows[0];
+          return Response.json({
+            id: r.id,
+            email: r.email,
+            fullName: r.fullName || r.email?.split("@")[0] || "User",
+            mobile: r.mobile,
+            status: r.status,
+            signInLinked: Boolean(r.signInLinked),
+            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+            activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
+            roles: Array.isArray(r.roles) ? r.roles : [],
+            editionAccess: [{ edition: 2026, source: "predefined" }],
+            activation: null,
+            category: r.category || null,
+            teamName: r.teamName || null,
+            teamMembers: r.teamMembers || null,
+            domain: r.domain || null,
+            altMobile: r.altMobile || null,
+            city: r.city || null,
+            state: r.state || null,
+            country: r.country || null,
+            linkedinUrl: r.linkedinUrl || null,
+          });
+        }
+        return Response.json({ message: "User not found" }, { status: 404 });
+      } catch (err) {
+        return Response.json({ message: (err as Error).message }, { status: 500 });
+      }
+    }
+
+    // ---------------------------------------------------- POST /v1/admin/users/:id/roles
+    const grantRoleMatch = path.match(/\/admin\/users\/([0-9a-fA-F-]+)\/roles$/);
+    if (grantRoleMatch && method === "POST") {
+      const targetId = grantRoleMatch[1];
+      const body = await request.json();
+      const role = String(body.role);
+      const edition = Number(body.edition) || 2026;
+      await sql`
+        insert into role_grants (user_id, role, edition_id)
+        values (${targetId}, ${role}, ${edition})
+        on conflict do nothing
+      `;
+      return Response.json({ ok: true });
+    }
+
+    // ---------------------------------------------------- DELETE /v1/admin/users/:id/roles/:role
+    const revokeRoleMatch = path.match(/\/admin\/users\/([0-9a-fA-F-]+)\/roles\/([^/]+)$/);
+    if (revokeRoleMatch && method === "DELETE") {
+      const targetId = revokeRoleMatch[1];
+      const role = decodeURIComponent(revokeRoleMatch[2]);
+      await sql`
+        update role_grants set revoked_at = now()
+        where user_id = ${targetId} and role = ${role}
+      `;
+      return Response.json({ ok: true });
+    }
+
+    // ---------------------------------------------------- POST /v1/admin/users/:id/status
+    const statusMatch = path.match(/\/admin\/users\/([0-9a-fA-F-]+)\/status$/);
+    if (statusMatch && method === "POST") {
+      const targetId = statusMatch[1];
+      const body = await request.json();
+      await sql`
+        update user_accounts set status = ${body.status}, updated_at = now()
+        where id = ${targetId}
+      `;
+      return Response.json({ ok: true });
+    }
+
+    // ---------------------------------------------------- GET /v1/support/tickets
+    if (path.includes("/support/tickets") && method === "GET" && !path.match(/\/support\/tickets\/[^/]+/)) {
+      try {
+        const rows = await sql`
+          select t.id, t.edition_id as "editionId", t.number, t.subject, t.description, t.status,
+                 t.priority, t.is_emergency as "isEmergency", t.created_at as "createdAt",
+                 t.acknowledged_at as "acknowledgedAt", t.resolved_at as "resolvedAt",
+                 t.contact_name as "contactName", t.contact_phone as "contactPhone",
+                 t.assignee_id as "assigneeId", u.full_name as "requesterName", u.email as "requesterEmail"
+          from support_tickets t
+          left join user_accounts u on u.id = t.requester_id
+          order by t.is_emergency desc, t.priority = 'high' desc, t.created_at desc
+          limit 50
+        `;
+        return Response.json({
+          tickets: rows.map((r: any) => ({
+            id: r.id,
+            edition: r.editionId || 2026,
+            number: Number(r.number) || 1,
+            subject: r.subject || "Support Inquiry",
+            description: r.description || "",
+            status: r.status || "open",
+            priority: r.priority || "normal",
+            isEmergency: Boolean(r.isEmergency),
+            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+            acknowledgedAt: r.acknowledgedAt ? new Date(r.acknowledgedAt).toISOString() : null,
+            resolvedAt: r.resolvedAt ? new Date(r.resolvedAt).toISOString() : null,
+            contactName: r.contactName || r.requesterName || "Attendee",
+            contactPhone: r.contactPhone || null,
+            assigneeId: r.assigneeId || null,
+          })),
+        });
+      } catch (err) {
+        console.error("[SUPPORT TICKETS ERROR]", err);
+        return Response.json({ tickets: [] });
+      }
+    }
+
+    // ---------------------------------------------------- GET /v1/support/alerts
+    if (path.includes("/support/alerts") && method === "GET") {
+      try {
+        const rows = await sql`
+          select a.id, a.ticket_id as "ticketId", a.reason, a.created_at as "createdAt"
+          from support_alerts a
+          order by a.created_at desc
+          limit 20
+        `;
+        return Response.json({
+          alerts: rows.map((r: any) => ({
+            id: r.id,
+            ticketId: r.ticketId,
+            reason: r.reason,
+            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+          })),
+        });
+      } catch {
+        return Response.json({ alerts: [] });
+      }
+    }
+
+    // ---------------------------------------------------- POST /v1/support/tickets/:id/acknowledge
+    const ackMatch = path.match(/\/support\/tickets\/([0-9a-fA-F-]+)\/acknowledge$/);
+    if (ackMatch && method === "POST") {
+      const ticketId = ackMatch[1];
+      try {
+        await sql`
+          update support_tickets set acknowledged_at = now(), status = 'acknowledged', updated_at = now()
+          where id = ${ticketId}
+        `;
+        return Response.json({ ok: true, id: ticketId });
+      } catch (err) {
+        return Response.json({ message: (err as Error).message }, { status: 500 });
+      }
+    }
+
+    // ---------------------------------------------------- POST /v1/support/tickets/:id/status
+    const ticketStatusMatch = path.match(/\/support\/tickets\/([0-9a-fA-F-]+)\/status$/);
+    if (ticketStatusMatch && method === "POST") {
+      const ticketId = ticketStatusMatch[1];
+      const body = await request.json();
+      try {
+        await sql`
+          update support_tickets set status = ${body.status}, updated_at = now(),
+                 resolved_at = ${body.status === 'resolved' ? sql`now()` : sql`resolved_at`}
+          where id = ${ticketId}
+        `;
+        return Response.json({ ok: true, id: ticketId });
+      } catch (err) {
+        return Response.json({ message: (err as Error).message }, { status: 500 });
+      }
+    }
+
+    // ---------------------------------------------------- POST /v1/support/tickets
+    if (path.includes("/support/tickets") && method === "POST") {
+      const body = await request.json();
+      const subject = String(body.subject || "Support Inquiry");
+      const priority = String(body.priority || "normal");
+      const isEmergency = Boolean(body.isEmergency);
+      const contactName = body.contact?.name || "Participant";
+      const contactPhone = body.contact?.phone || null;
+
+      try {
+        const [ticket] = await sql`
+          insert into support_tickets (
+            edition_id, subject, priority, is_emergency, status, contact_name, contact_phone, created_at
+          )
+          values (
+            2026, ${subject}, ${priority}, ${isEmergency}, 'open', ${contactName}, ${contactPhone}, now()
+          )
+          returning id, number
+        `;
+        return Response.json({
+          id: ticket.id,
+          number: Number(ticket.number) || 1,
+          subject,
+          priority,
+          isEmergency,
+          status: "open",
+        }, { status: 201 });
+      } catch (err) {
+        return Response.json({ message: (err as Error).message }, { status: 500 });
+      }
     }
 
     // ---------------------------------------------------- Proxy all other routes to Render backend

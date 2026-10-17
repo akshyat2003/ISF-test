@@ -5,10 +5,7 @@ import { Account } from "./account";
 
 export function Nav() {
   const { me, email } = useMe();
-  const isAdmin =
-    (email && ["akshatrajpati@gmail.com", "arushkumar450@gmail.com", "sarangeeamartya@gmail.com"].includes(email.toLowerCase())) ||
-    me?.roles.includes("admin") ||
-    me?.roles.includes("management");
+  const isAdmin = me?.roles.includes("admin") || me?.roles.includes("management");
 
   return (
     <nav className="nav" aria-label="Console">

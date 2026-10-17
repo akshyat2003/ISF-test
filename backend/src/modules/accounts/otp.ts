@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 import type { Sql } from "../../db/client.js";
 import { issueDevToken } from "../../platform/auth.js";
 import { AppError } from "../../platform/errors.js";
-import { hashPassword, verifyPassword } from "./passwords.js";
+export { hashPassword, verifyPassword } from "./passwords.js";
 
 type StoredOtp = {
   code: string;

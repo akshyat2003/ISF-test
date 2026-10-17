@@ -57,16 +57,70 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
           {self && <p className="notice notice-warn">This is your own account. Another administrator must change its roles or status.</p>}
 
           <section className="card" style={{ marginBottom: 16 }}>
+            <h2>Registration Profile & Details</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginTop: 12 }}>
+              <div>
+                <span className="muted small" style={{ display: "block" }}>Registration Category / Track</span>
+                <strong style={{ fontSize: "1.05rem", color: "var(--accent)" }}>
+                  {u.category ? label(u.category) : "Not Specified / Staff"}
+                </strong>
+              </div>
+              <div>
+                <span className="muted small" style={{ display: "block" }}>Startup / Organization Name</span>
+                <strong>{u.teamName ?? "—"}</strong>
+              </div>
+              <div>
+                <span className="muted small" style={{ display: "block" }}>Sector / Domain</span>
+                <strong>{u.domain ?? "—"}</strong>
+              </div>
+              <div>
+                <span className="muted small" style={{ display: "block" }}>Primary Email</span>
+                <strong>{u.email ?? "—"}</strong>
+              </div>
+              <div>
+                <span className="muted small" style={{ display: "block" }}>Phone Number</span>
+                <strong>{u.mobile ?? "—"}</strong>
+              </div>
+              <div>
+                <span className="muted small" style={{ display: "block" }}>Alternative Phone Number</span>
+                <strong>{u.altMobile ?? "—"}</strong>
+              </div>
+              <div>
+                <span className="muted small" style={{ display: "block" }}>Location</span>
+                <strong>{[u.city, u.state, u.country].filter(Boolean).join(", ") || "—"}</strong>
+              </div>
+              <div>
+                <span className="muted small" style={{ display: "block" }}>LinkedIn Profile</span>
+                {u.linkedinUrl ? (
+                  <a href={u.linkedinUrl.startsWith("http") ? u.linkedinUrl : `https://${u.linkedinUrl}`} target="_blank" rel="noopener noreferrer" style={{ color: "#0284c7", fontWeight: 600 }}>
+                    {u.linkedinUrl} ↗
+                  </a>
+                ) : (
+                  <strong>—</strong>
+                )}
+              </div>
+              {u.teamMembers && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <span className="muted small" style={{ display: "block" }}>Team Members & Details</span>
+                  <div style={{ background: "#f8fafc", padding: "10px 14px", borderRadius: 6, marginTop: 4, whiteSpace: "pre-wrap" }}>
+                    {u.teamMembers}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="card" style={{ marginBottom: 16 }}>
             <h2>Roles</h2>
             {u.roles.length === 0 ? <p className="muted">No roles.</p> : (
               <ul className="plain">
-                {u.roles.map((r) => (
-                  <li key={r.grantId}>
+                {u.roles.map((r, idx) => (
+                  <li key={r.grantId || `${r.role}-${idx}`}>
                     <strong>{label(r.role)}</strong>{r.edition ? ` · ${r.edition} only` : " · all editions"}{" "}
-                    <span className="muted small">since {formatIst(r.grantedAt)}</span>{" "}
-                    {can(me, "role.assign") && !self && (
+                    {r.grantedAt ? <span className="muted small">since {formatIst(r.grantedAt)}</span> : null}{" "}
+                    {can(me, "role.assign") && !self && r.grantId && (
                       <button className="btn btn-sm" disabled={busy}
-                        onClick={() => confirm(`Remove ${label(r.role)} from ${u.fullName}? It takes effect immediately.`) && void act(() => api.admin.revokeRole(u.id, r.grantId))}>
+                        onClick={() => confirm(`Remove ${label(r.role)} from ${u.fullName}? It takes effect immediately.`) && void act(() => api.admin.revokeRole(u.id, r.grantId!))}>
                         Remove
                       </button>
                     )}
