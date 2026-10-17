@@ -360,6 +360,14 @@ function LoginForm() {
                 <div className="input-group">
                   <label className="input-label" htmlFor="work-password">
                     <span>Password</span>
+                    <button
+                      type="button"
+                      className="sublink"
+                      onClick={requestOtpCode}
+                      style={{ background: "none", border: "none", padding: 0 }}
+                    >
+                      Forgot password?
+                    </button>
                   </label>
                   <input
                     id="work-password"

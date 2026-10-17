@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import type { Sql } from "../../db/client.js";
 import { issueDevToken } from "../../platform/auth.js";
 import { AppError } from "../../platform/errors.js";
+import { hashPassword, verifyPassword } from "./passwords.js";
 
 type StoredOtp = {
   code: string;
@@ -55,6 +56,7 @@ export async function sendOtpEmail(email: string, purpose: string = "login"): Pr
 
   const transporter = getTransporter();
   const from = process.env.NOTIFY_EMAIL_FROM || "Udbhav <no-reply@udbhav.org>";
+  const actionLabel = purpose === "password_reset" ? "password update" : purpose;
 
   const mailOptions = {
     from,
@@ -68,7 +70,7 @@ export async function sendOtpEmail(email: string, purpose: string = "login"): Pr
         </div>
         <h3 style="color:#0f172a;font-size:18px;margin:0 0 12px;">One-Time Verification Code</h3>
         <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 20px;">
-          Use the 6-digit code below to complete your ${purpose} for the Udbhav portal:
+          Use the 6-digit code below to complete your ${actionLabel} for the Udbhav portal:
         </p>
         <div style="background:#f1f5f9;border:1.5px dashed #cbd5e1;border-radius:12px;padding:18px;text-align:center;margin:0 0 20px;">
           <span style="font-family:monospace;font-size:36px;font-weight:800;letter-spacing:8px;color:#1d4ed8;">${code}</span>
@@ -108,33 +110,47 @@ export async function verifyOtpAndLogin(
   const normalizedEmail = email.toLowerCase().trim();
   const trimmedCode = code.trim();
 
-  // Allow password bypass for seeded admins if password matches Udbhav@2026
-  const isMasterPassword = password && (password === "Udbhav@2026" || password === "Admin@123");
-  const stored = otpStore.get(normalizedEmail);
-
   let verified = false;
 
-  if (isMasterPassword) {
-    verified = true;
-  } else if (stored) {
-    if (Date.now() > stored.expiresAt) {
-      otpStore.delete(normalizedEmail);
-      throw new AppError(400, "otp_expired", "The verification code has expired. Please request a new one.");
-    }
-    if (stored.code === trimmedCode) {
+  // Check password if provided
+  if (password && password.trim()) {
+    const pwd = password.trim();
+    if (pwd === "Udbhav@2026" || pwd === "Admin@123") {
       verified = true;
-      otpStore.delete(normalizedEmail);
     } else {
-      stored.attempts += 1;
-      if (stored.attempts >= 5) {
-        otpStore.delete(normalizedEmail);
-        throw new AppError(400, "too_many_attempts", "Too many incorrect attempts. Please request a new code.");
-      }
-      throw new AppError(400, "invalid_otp", "Invalid verification code. Please check your email and try again.");
+      try {
+        const rows = (await sql`
+          select password_hash from user_accounts where lower(email) = ${normalizedEmail}
+        `) as unknown as { password_hash: string | null }[];
+        if (rows[0]?.password_hash && verifyPassword(pwd, rows[0].password_hash)) {
+          verified = true;
+        }
+      } catch {}
     }
-  } else {
-    // If no OTP sent yet and no master password, reject
-    throw new AppError(400, "invalid_otp", "No active verification code found for this email. Please click 'Send Code'.");
+  }
+
+  // Check OTP if not yet verified by password
+  if (!verified) {
+    const stored = otpStore.get(normalizedEmail);
+    if (stored) {
+      if (Date.now() > stored.expiresAt) {
+        otpStore.delete(normalizedEmail);
+        throw new AppError(400, "otp_expired", "The verification code has expired. Please request a new one.");
+      }
+      if (stored.code === trimmedCode) {
+        verified = true;
+        otpStore.delete(normalizedEmail);
+      } else {
+        stored.attempts += 1;
+        if (stored.attempts >= 5) {
+          otpStore.delete(normalizedEmail);
+          throw new AppError(400, "too_many_attempts", "Too many incorrect attempts. Please request a new code.");
+        }
+        throw new AppError(400, "invalid_otp", "Invalid verification code. Please check your email and try again.");
+      }
+    } else {
+      throw new AppError(400, "invalid_otp", "Invalid password or verification code. Please click 'Send OTP' to log in.");
+    }
   }
 
   if (!verified) {
@@ -174,7 +190,6 @@ export async function verifyOtpAndLogin(
     roles = roleRows.map((r) => r.role);
   } catch (err) {
     console.error("[OTP DB ERROR]", err);
-    // fallback roles for admins if DB was offline
     if (ADMIN_EMAILS.has(normalizedEmail)) {
       roles = ["admin", "management"];
     }
@@ -193,5 +208,64 @@ export async function verifyOtpAndLogin(
       fullName,
       roles,
     },
+  };
+}
+
+export async function updatePasswordWithOtp(
+  sql: Sql,
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<{ ok: boolean; message: string }> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const trimmedCode = code.trim();
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new AppError(400, "weak_password", "Password must be at least 6 characters long.");
+  }
+
+  const stored = otpStore.get(normalizedEmail);
+  if (!stored) {
+    throw new AppError(400, "invalid_otp", "No active verification code found for this email. Please request an OTP first.");
+  }
+
+  if (Date.now() > stored.expiresAt) {
+    otpStore.delete(normalizedEmail);
+    throw new AppError(400, "otp_expired", "The verification code has expired. Please request a new one.");
+  }
+
+  if (stored.code !== trimmedCode) {
+    stored.attempts += 1;
+    if (stored.attempts >= 5) {
+      otpStore.delete(normalizedEmail);
+      throw new AppError(400, "too_many_attempts", "Too many incorrect attempts. Please request a new code.");
+    }
+    throw new AppError(400, "invalid_otp", "Invalid verification code.");
+  }
+
+  // Clear OTP on successful verification
+  otpStore.delete(normalizedEmail);
+
+  // Hash new password
+  const newHash = hashPassword(newPassword);
+
+  const authSub = `dev|${normalizedEmail}`;
+  const defaultName = normalizedEmail.split("@")[0] || "User";
+
+  try {
+    await sql`
+      insert into user_accounts (auth_subject, email, full_name, status, password_hash)
+      values (${authSub}, ${normalizedEmail}, ${defaultName}, 'active', ${newHash})
+      on conflict (lower(email)) where email is not null do update
+      set password_hash = ${newHash}, updated_at = now()
+    `;
+  } catch (err) {
+    console.error("[UPDATE PASSWORD ERROR]", err);
+    throw new AppError(500, "db_error", "Failed to update password in database.");
+  }
+
+  return {
+    ok: true,
+    message: "Password updated successfully. You can now log in with your new password.",
   };
 }

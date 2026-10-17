@@ -439,6 +439,9 @@ function SignInForm() {
             </div>
 
             <div className="action-links">
+              <Link href="/reset-password" className="action-link">
+                Forgot your password?
+              </Link>
               <a
                 href="#otp"
                 className="action-link"
