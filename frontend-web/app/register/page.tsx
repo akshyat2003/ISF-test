@@ -108,6 +108,41 @@ function compressImageFile(file: File, maxWidth = 400, quality = 0.82): Promise<
   });
 }
 
+// Universal LinkedIn / URL normalizer (handles full URLs, www, handles, usernames)
+export function normalizeLinkedInUrl(input: string): string {
+  let val = (input || "").trim();
+  if (!val) return "";
+
+  // If already starts with http:// or https://
+  if (/^https?:\/\//i.test(val)) {
+    return val;
+  }
+
+  // If protocol-relative //
+  if (val.startsWith("//")) {
+    return `https:${val}`;
+  }
+
+  // If starts with www. or linkedin.com or regional subdomain (e.g. in.linkedin.com)
+  if (/^([a-z0-9-]+\.)?linkedin\.com/i.test(val)) {
+    return `https://${val}`;
+  }
+
+  // If starts with in/
+  if (/^in\/[a-zA-Z0-9_\-%\.]+/i.test(val)) {
+    return `https://www.linkedin.com/${val}`;
+  }
+
+  // If general web domain
+  if (/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(val)) {
+    return `https://${val}`;
+  }
+
+  // If username / handle (e.g. amartya-sarangee-3351a8241 or @username)
+  const cleanUsername = val.replace(/^@/, "");
+  return `https://www.linkedin.com/in/${cleanUsername}`;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
 
@@ -135,6 +170,13 @@ export default function RegisterPage() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function handleFormError(msg: string) {
+    setError(msg);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 120, behavior: "smooth" });
+    }
+  }
   const [registered, setRegistered] = useState<{
     email: string;
     fullName: string;
@@ -219,138 +261,142 @@ export default function RegisterPage() {
 
     const normEmail = email.trim().toLowerCase();
     if (!normEmail || !normEmail.includes("@")) {
-      setError("Please provide a valid official email address.");
+      handleFormError("Please provide a valid official email address.");
       return;
     }
     if (!fullName.trim()) {
-      setError("Please enter the team lead / full name.");
+      handleFormError("Please enter the team lead / full name.");
       return;
     }
     if (!password || password.length < 6) {
-      setError("Please enter a password of at least 6 characters.");
+      handleFormError("Please enter a password of at least 6 characters.");
       return;
     }
 
     // Startup Leader & Student Innovator Strict Compulsory Validations
     if (isStartupOrInnovator) {
       if (!teamName.trim()) {
-        setError("Please enter your Startup / Team Name.");
+        handleFormError("Please enter your Startup / Team Name.");
         return;
       }
       if (!leadPhoto) {
-        setError("Please upload the Team Lead Photo.");
+        handleFormError("Please upload the Team Lead Photo.");
         return;
       }
       if (!mobile.trim()) {
-        setError("Please enter your Primary Phone Number.");
+        handleFormError("Please enter your Primary Phone Number.");
         return;
       }
       if (!altMobile.trim()) {
-        setError("Please enter your Alternate Phone Number.");
+        handleFormError("Please enter your Alternate Phone Number.");
         return;
       }
       if (!domain.trim()) {
-        setError("Please select a Domain / Sector.");
+        handleFormError("Please select a Domain / Sector.");
         return;
       }
       if (!city.trim()) {
-        setError("Please enter your City.");
+        handleFormError("Please enter your City.");
         return;
       }
       if (!state.trim()) {
-        setError("Please enter your State.");
+        handleFormError("Please enter your State.");
         return;
       }
       if (!country.trim()) {
-        setError("Please enter your Country.");
+        handleFormError("Please enter your Country.");
         return;
       }
-      if (!linkedinUrl.trim()) {
-        setError("Please enter your LinkedIn Profile / URL.");
+
+      const formattedLinkedin = normalizeLinkedInUrl(linkedinUrl);
+      if (!formattedLinkedin) {
+        handleFormError("Please enter your LinkedIn Profile / URL.");
         return;
       }
+      setLinkedinUrl(formattedLinkedin);
+
       if (members.length === 0) {
-        setError("Please provide details for at least 1 team member (max 5 members).");
+        handleFormError("Please provide details for at least 1 team member (max 5 members).");
         return;
       }
       if (members.length > 5) {
-        setError("Maximum 5 team members are allowed.");
+        handleFormError("Maximum 5 team members are allowed.");
         return;
       }
       // Check every member's details
       for (let i = 0; i < members.length; i++) {
         const m = members[i];
         if (!m.name.trim()) {
-          setError(`Please enter the full name for Member #${i + 1}.`);
+          handleFormError(`Please enter the full name for Member #${i + 1}.`);
           return;
         }
         if (!m.photoUrl) {
-          setError(`Please upload a photo for Member #${i + 1} (${m.name || "Member"}).`);
+          handleFormError(`Please upload a photo for Member #${i + 1} (${m.name || "Member"}).`);
           return;
         }
         if (!m.phone.trim()) {
-          setError(`Please enter a phone number for Member #${i + 1} (${m.name}).`);
+          handleFormError(`Please enter a phone number for Member #${i + 1} (${m.name}).`);
           return;
         }
         if (!m.email.trim() || !m.email.includes("@")) {
-          setError(`Please enter a valid email address for Member #${i + 1} (${m.name}).`);
+          handleFormError(`Please enter a valid email address for Member #${i + 1} (${m.name}).`);
           return;
         }
       }
     } else if (isVolunteer) {
       // Volunteer Compulsory Validations
       if (!fullName.trim()) {
-        setError("Please enter your Volunteer Full Name.");
+        handleFormError("Please enter your Volunteer Full Name.");
         return;
       }
       if (!leadPhoto) {
-        setError("Please upload your Volunteer Photograph.");
+        handleFormError("Please upload your Volunteer Photograph.");
         return;
       }
       if (!teamName.trim()) {
-        setError("Please enter your Organisation / Institution Name.");
+        handleFormError("Please enter your Organisation / Institution Name.");
         return;
       }
       if (!redgNo.trim()) {
-        setError("Please enter your Registration Number (Redg No).");
+        handleFormError("Please enter your Registration Number (Redg No).");
         return;
       }
       if (!rollNo.trim()) {
-        setError("Please enter your Roll Number / Student ID.");
+        handleFormError("Please enter your Roll Number / Student ID.");
         return;
       }
       if (!normEmail || !normEmail.includes("@")) {
-        setError("Please enter a valid email address.");
+        handleFormError("Please enter a valid email address.");
         return;
       }
       if (!password || password.length < 6) {
-        setError("Please enter an account password of at least 6 characters.");
+        handleFormError("Please enter an account password of at least 6 characters.");
         return;
       }
       if (!mobile.trim()) {
-        setError("Please enter your Primary Phone Number.");
+        handleFormError("Please enter your Primary Phone Number.");
         return;
       }
       if (!altMobile.trim()) {
-        setError("Please enter your Alternate Phone Number.");
+        handleFormError("Please enter your Alternate Phone Number.");
         return;
       }
       if (!city.trim()) {
-        setError("Please enter your City.");
+        handleFormError("Please enter your City.");
         return;
       }
       if (!state.trim()) {
-        setError("Please enter your State.");
+        handleFormError("Please enter your State.");
         return;
       }
       if (!country.trim()) {
-        setError("Please enter your Country.");
+        handleFormError("Please enter your Country.");
         return;
       }
     } else {
       // General validation for other categories
       if (!mobile.trim()) {
-        setError("Please provide a primary phone number.");
+        handleFormError("Please provide a primary phone number.");
         return;
       }
     }
@@ -358,6 +404,7 @@ export default function RegisterPage() {
     setBusy(true);
 
     try {
+      const finalLinkedin = normalizeLinkedInUrl(linkedinUrl);
       const res = await fetch("/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -377,7 +424,7 @@ export default function RegisterPage() {
           city: city.trim(),
           state: state.trim(),
           country: country.trim(),
-          linkedinUrl: isStartupOrInnovator ? linkedinUrl.trim() : null,
+          linkedinUrl: isStartupOrInnovator ? finalLinkedin : null,
           members: isStartupOrInnovator ? members : [],
         }),
       });
@@ -404,7 +451,7 @@ export default function RegisterPage() {
         members: isStartupOrInnovator ? members : [],
       });
     } catch (err) {
-      setError((err as Error).message || "An unexpected error occurred. Please try again.");
+      handleFormError((err as Error).message || "An unexpected error occurred. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -1351,12 +1398,24 @@ export default function RegisterPage() {
                   <input
                     id="linkedinUrl"
                     className="input-field"
-                    type="url"
+                    type="text"
+                    inputMode="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     required
-                    placeholder="https://linkedin.com/in/username"
+                    placeholder="e.g. linkedin.com/in/username or https://www.linkedin.com/in/username"
                     value={linkedinUrl}
                     onChange={(e) => setLinkedinUrl(e.target.value)}
+                    onBlur={() => {
+                      if (linkedinUrl.trim()) {
+                        setLinkedinUrl(normalizeLinkedInUrl(linkedinUrl));
+                      }
+                    }}
                   />
+                  <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>
+                    Accepts LinkedIn URL, www.linkedin.com/in/..., or your profile username (we'll format it automatically)
+                  </span>
                 </div>
               )}
 
@@ -1530,6 +1589,13 @@ export default function RegisterPage() {
                   )}
                 </div>
               </>
+            )}
+
+            {error && (
+              <div className="error-banner" role="alert" style={{ marginBottom: "16px" }}>
+                <span>⚠️</span>
+                <span>{error}</span>
+              </div>
             )}
 
             <button type="submit" className="submit-btn" disabled={busy}>

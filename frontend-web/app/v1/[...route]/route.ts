@@ -164,6 +164,18 @@ const ALL_ADMIN_PERMISSIONS = [
   "user.read", "volunteer.assign", "volunteer.manage", "volunteer.read_own"
 ];
 
+function normalizeLinkedInUrl(input: string): string {
+  let val = (input || "").trim();
+  if (!val) return "";
+  if (/^https?:\/\//i.test(val)) return val;
+  if (val.startsWith("//")) return `https:${val}`;
+  if (/^([a-z0-9-]+\.)?linkedin\.com/i.test(val)) return `https://${val}`;
+  if (/^in\/[a-zA-Z0-9_\-%\.]+/i.test(val)) return `https://www.linkedin.com/${val}`;
+  if (/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(val)) return `https://${val}`;
+  const cleanUsername = val.replace(/^@/, "");
+  return `https://www.linkedin.com/in/${cleanUsername}`;
+}
+
 async function handler(request: Request) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -387,7 +399,7 @@ async function handler(request: Request) {
       const city = String(body.city || "").trim();
       const state = String(body.state || "").trim();
       const country = String(body.country || "India").trim();
-      const linkedinUrl = String(body.linkedinUrl || "").trim();
+      const linkedinUrl = normalizeLinkedInUrl(String(body.linkedinUrl || ""));
 
       const redgNo = String(body.redgNo || "").trim();
       const rollNo = String(body.rollNo || "").trim();
@@ -476,6 +488,12 @@ async function handler(request: Request) {
           alter table user_accounts add column if not exists redg_no text;
           alter table user_accounts add column if not exists roll_no text;
           alter table user_accounts add column if not exists organisation_name text;
+          alter table user_accounts add column if not exists domain text;
+          alter table user_accounts add column if not exists alt_mobile text;
+          alter table user_accounts add column if not exists city text;
+          alter table user_accounts add column if not exists state text;
+          alter table user_accounts add column if not exists country text;
+          alter table user_accounts add column if not exists linkedin_url text;
           create table if not exists startup_team_members (
             id uuid primary key default gen_random_uuid(),
             startup_id uuid references startups(id) on delete cascade,
@@ -655,6 +673,10 @@ async function handler(request: Request) {
         },
         message: "Registration successful! Your account is active.",
       });
+      response.headers.set(
+        "Set-Cookie",
+        `sj_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax`
+      );
 
       // Dispatch confirmation email to team leader
       const transporter = getTransporter();
@@ -943,7 +965,7 @@ async function handler(request: Request) {
       const city = String(body.city || "").trim();
       const state = String(body.state || "").trim();
       const country = String(body.country || "India").trim();
-      const linkedinUrl = String(body.linkedinUrl || "").trim();
+      const linkedinUrl = normalizeLinkedInUrl(String(body.linkedinUrl || ""));
       const domain = String(body.domain || "").trim();
       const teamName = String(body.teamName || "").trim();
       const teamMembers = String(body.teamMembers || "").trim();

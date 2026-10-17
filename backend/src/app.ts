@@ -168,7 +168,20 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const city = String(body.city || "").trim();
     const state = String(body.state || "").trim();
     const country = String(body.country || "India").trim();
-    const linkedinUrl = String(body.linkedinUrl || "").trim();
+    const rawLinkedin = String(body.linkedinUrl || "").trim();
+    const linkedinUrl = rawLinkedin
+      ? /^https?:\/\//i.test(rawLinkedin)
+        ? rawLinkedin
+        : rawLinkedin.startsWith("//")
+        ? `https:${rawLinkedin}`
+        : /^([a-z0-9-]+\.)?linkedin\.com/i.test(rawLinkedin)
+        ? `https://${rawLinkedin}`
+        : rawLinkedin.startsWith("in/")
+        ? `https://www.linkedin.com/${rawLinkedin}`
+        : /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(rawLinkedin)
+        ? `https://${rawLinkedin}`
+        : `https://www.linkedin.com/in/${rawLinkedin.replace(/^@/, "")}`
+      : "";
     const password = typeof body.password === "string" ? body.password.trim() : "";
 
     if (!email || !email.includes("@")) throw new AppError(400, "bad_request", "A valid email address is required");

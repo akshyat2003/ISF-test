@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSessionIdentity, api } from "@/lib/session";
+import { normalizeLinkedInUrl } from "@/lib/utils";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -126,6 +127,8 @@ export default function ProfilePage() {
     setSavingProfile(true);
     setProfileSuccess(null);
     setError(null);
+    const cleanLinkedin = normalizeLinkedInUrl(linkedinUrl);
+    setLinkedinUrl(cleanLinkedin);
     try {
       const res = await fetch("/v1/me/profile", {
         method: "PUT",
@@ -140,7 +143,7 @@ export default function ProfilePage() {
           domain,
           teamName,
           teamMembers,
-          linkedinUrl,
+          linkedinUrl: cleanLinkedin,
         }),
       });
       const data = await res.json();
@@ -267,7 +270,19 @@ export default function ProfilePage() {
               <input type="text" placeholder="e.g. AgriSmart Pvt Ltd" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
             </label>
             <label>LinkedIn Profile URL
-              <input type="url" placeholder="https://linkedin.com/in/username" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} />
+              <input
+                type="text"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="e.g. linkedin.com/in/username or https://www.linkedin.com/in/username"
+                value={linkedinUrl}
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+                onBlur={() => {
+                  if (linkedinUrl.trim()) setLinkedinUrl(normalizeLinkedInUrl(linkedinUrl));
+                }}
+              />
             </label>
           </div>
 
