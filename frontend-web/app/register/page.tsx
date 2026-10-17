@@ -509,8 +509,8 @@ export default function RegisterPage() {
         return;
       }
 
-      if (data.token && data.user) {
-        storeSessionToken(data.token, data.user);
+      if (data.token) {
+        storeSessionToken(data.token);
       }
 
       setRegistered({
