@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import "./globals.css";
 import { AccountLink } from "./account-link";
+import { OrganizerLogos } from "./organizer-logos";
 
 export const metadata: Metadata = {
   title: "Udbhav · Startup Jathara @ Dandakaranya",
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="container">{children}</main>
         <footer className="site-footer">
           <div className="container footer-content">
+            <OrganizerLogos layout="cards" title="Presented & Organised by" />
             <div className="footer-links">
               GIET University, Gunupur, Odisha · International Startup Foundation (ISF) · Incubatex Innovation ·{" "}
               <Link href="/privacy">Privacy notice</Link>
