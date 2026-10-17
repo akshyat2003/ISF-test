@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@sj/api": "workspace:*",
     "@sj/client": "workspace:*",
     "@sj/contracts": "workspace:*",
     "@sj/web-session": "workspace:*",

@@ -62,6 +62,9 @@ importers:
 
   frontend-console:
     dependencies:
+      '@sj/api':
+        specifier: workspace:*
+        version: link:../backend
       '@sj/client':
         specifier: workspace:*
         version: link:../packages/client
@@ -96,6 +99,9 @@ importers:
 
   frontend-web:
     dependencies:
+      '@sj/api':
+        specifier: workspace:*
+        version: link:../backend
       '@sj/client':
         specifier: workspace:*
         version: link:../packages/client
