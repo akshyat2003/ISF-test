@@ -176,6 +176,32 @@ function normalizeLinkedInUrl(input: string): string {
   return `https://www.linkedin.com/in/${cleanUsername}`;
 }
 
+function normalizeMobileNumber(input: string): string | null {
+  if (!input) return null;
+  let s = String(input).trim().replace(/[\s\-().]/g, "");
+  if (!s) return null;
+
+  if (s.startsWith("00")) {
+    s = "+" + s.slice(2);
+  }
+  if (/^[6-9]\d{9}$/.test(s)) {
+    return `+91${s}`;
+  }
+  if (/^0[6-9]\d{9}$/.test(s)) {
+    return `+91${s.slice(1)}`;
+  }
+  if (/^91[6-9]\d{9}$/.test(s)) {
+    return `+${s}`;
+  }
+  if (/^\+[1-9]\d{7,14}$/.test(s)) {
+    return s;
+  }
+  if (/^[1-9]\d{7,14}$/.test(s)) {
+    return `+${s}`;
+  }
+  return null;
+}
+
 async function handler(request: Request) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -393,8 +419,10 @@ async function handler(request: Request) {
       const category = String(body.category || body.role || "startup_founder");
       const teamName = String(body.teamName || body.startupName || "").trim();
       const photoUrl = typeof body.photoUrl === "string" ? body.photoUrl.trim() : null;
-      const mobile = String(body.mobile || body.phoneNumber || "").trim();
-      const altMobile = String(body.altMobile || "").trim();
+      const rawMobile = String(body.mobile || body.phoneNumber || "").trim();
+      const mobile = normalizeMobileNumber(rawMobile);
+      const rawAltMobile = String(body.altMobile || "").trim();
+      const altMobile = normalizeMobileNumber(rawAltMobile) || rawAltMobile;
       const domain = String(body.domain || "").trim();
       const city = String(body.city || "").trim();
       const state = String(body.state || "").trim();
@@ -411,7 +439,7 @@ async function handler(request: Request) {
       const members: Array<{ name: string; photoUrl?: string; phone: string; email: string }> = rawMembers.slice(0, 5).map((m: any) => ({
         name: String(m?.name || "").trim(),
         photoUrl: typeof m?.photoUrl === "string" ? m.photoUrl.trim() : undefined,
-        phone: String(m?.phone || "").trim(),
+        phone: normalizeMobileNumber(String(m?.phone || "").trim()) || String(m?.phone || "").trim(),
         email: String(m?.email || "").toLowerCase().trim(),
       }));
 
@@ -421,6 +449,12 @@ async function handler(request: Request) {
       }
       if (!fullName) {
         return Response.json({ message: "Full name is required" }, { status: 400 });
+      }
+      if (rawMobile && !mobile) {
+        return Response.json(
+          { message: "Invalid primary phone number. Please enter a valid 10-digit mobile number or international phone with country code (e.g. +91 98765 43210)." },
+          { status: 400 }
+        );
       }
 
       const isStartupLeader = category === "startup_founder" || category === "startup_team_leader" || category === "startup_leader";
@@ -435,7 +469,7 @@ async function handler(request: Request) {
           return Response.json({ message: "Team lead photo is required" }, { status: 400 });
         }
         if (!mobile) {
-          return Response.json({ message: "Primary phone number is required" }, { status: 400 });
+          return Response.json({ message: "A valid primary phone number is required (e.g. 10-digit mobile or +91 98765 43210)" }, { status: 400 });
         }
         if (!altMobile) {
           return Response.json({ message: "Alternate phone number is required" }, { status: 400 });
@@ -473,7 +507,7 @@ async function handler(request: Request) {
         if (!organisationName && !teamName) return Response.json({ message: "Organisation name is required" }, { status: 400 });
         if (!redgNo) return Response.json({ message: "Registration number (redg no) is required" }, { status: 400 });
         if (!rollNo) return Response.json({ message: "Roll number / student ID is required" }, { status: 400 });
-        if (!mobile) return Response.json({ message: "Primary phone number is required" }, { status: 400 });
+        if (!mobile) return Response.json({ message: "A valid primary phone number is required (e.g. 10-digit mobile or +91 98765 43210)" }, { status: 400 });
         if (!altMobile) return Response.json({ message: "Alternate phone number is required" }, { status: 400 });
         if (!city) return Response.json({ message: "City is required" }, { status: 400 });
         if (!state) return Response.json({ message: "State is required" }, { status: 400 });
@@ -960,8 +994,13 @@ async function handler(request: Request) {
       if (!payload || !email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const body = await request.json();
       const fullName = String(body.fullName || "").trim();
-      const mobile = String(body.mobile || "").trim();
-      const altMobile = String(body.altMobile || "").trim();
+      const rawMobile = String(body.mobile || "").trim();
+      const mobile = normalizeMobileNumber(rawMobile) || (rawMobile && /^\+[1-9]\d{7,14}$/.test(rawMobile) ? rawMobile : null);
+      if (rawMobile && !mobile) {
+        return Response.json({ message: "Invalid mobile number format. Please provide a valid 10-digit mobile number or +91 98765 43210." }, { status: 400 });
+      }
+      const rawAltMobile = String(body.altMobile || "").trim();
+      const altMobile = normalizeMobileNumber(rawAltMobile) || rawAltMobile;
       const city = String(body.city || "").trim();
       const state = String(body.state || "").trim();
       const country = String(body.country || "India").trim();
@@ -973,7 +1012,7 @@ async function handler(request: Request) {
       const [updated] = await sql`
         update user_accounts
         set full_name = coalesce(nullif(${fullName}, ''), full_name),
-            mobile_e164 = coalesce(nullif(${mobile}, ''), mobile_e164),
+            mobile_e164 = coalesce(nullif(${mobile || ''}, ''), mobile_e164),
             alt_mobile = coalesce(nullif(${altMobile}, ''), alt_mobile),
             city = coalesce(nullif(${city}, ''), city),
             state = coalesce(nullif(${state}, ''), state),
@@ -1088,7 +1127,11 @@ async function handler(request: Request) {
       const body = await request.json();
       const fullName = String(body.fullName || "").trim();
       const email = String(body.email || "").toLowerCase().trim();
-      const mobile = String(body.mobile || "").trim();
+      const rawMobile = String(body.mobile || "").trim();
+      const mobile = normalizeMobileNumber(rawMobile);
+      if (rawMobile && !mobile) {
+        return Response.json({ message: "Invalid mobile number format. Please provide a valid 10-digit mobile number or +91 98765 43210." }, { status: 400 });
+      }
       const role = String(body.role || "customer_support");
       const edition = Number(body.edition) || 2026;
       const password = typeof body.password === "string" && body.password.trim() ? body.password.trim() : "Support@2026!";
@@ -1408,15 +1451,29 @@ async function handler(request: Request) {
     }
   } catch (err) {
     console.error("[ROUTE HANDLER FATAL ERROR]", err);
+    const rawMsg = (err as Error).message || "Internal server error";
+    let userMsg = rawMsg;
+    let statusCode = 500;
+    if (rawMsg.includes("user_accounts_mobile_e164_check")) {
+      userMsg = "Invalid primary phone number format. Please provide a valid 10-digit mobile number or international phone (e.g. +91 98765 43210).";
+      statusCode = 400;
+    } else if (rawMsg.includes("user_accounts_full_name_check")) {
+      userMsg = "Full name must be between 1 and 200 characters.";
+      statusCode = 400;
+    } else if (rawMsg.includes("user_accounts_auth_subject_key")) {
+      userMsg = "An account with this email already exists. Please log in or use another email.";
+      statusCode = 400;
+    }
     return Response.json(
       {
         type: "about:blank",
         title: "API Error",
-        status: 500,
-        code: "internal_error",
-        detail: (err as Error).message || "Internal server error",
+        status: statusCode,
+        code: statusCode === 400 ? "bad_request" : "internal_error",
+        detail: userMsg,
+        message: userMsg,
       },
-      { status: 500 }
+      { status: statusCode }
     );
   }
 }

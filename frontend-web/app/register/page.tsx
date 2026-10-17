@@ -143,6 +143,33 @@ export function normalizeLinkedInUrl(input: string): string {
   return `https://www.linkedin.com/in/${cleanUsername}`;
 }
 
+// Universal E.164 phone normalizer (accepts 10-digit mobile, 0..., 91..., +91..., international)
+export function normalizeMobileNumber(input: string): string | null {
+  if (!input) return null;
+  let s = String(input).trim().replace(/[\s\-().]/g, "");
+  if (!s) return null;
+
+  if (s.startsWith("00")) {
+    s = "+" + s.slice(2);
+  }
+  if (/^[6-9]\d{9}$/.test(s)) {
+    return `+91${s}`;
+  }
+  if (/^0[6-9]\d{9}$/.test(s)) {
+    return `+91${s.slice(1)}`;
+  }
+  if (/^91[6-9]\d{9}$/.test(s)) {
+    return `+${s}`;
+  }
+  if (/^\+[1-9]\d{7,14}$/.test(s)) {
+    return s;
+  }
+  if (/^[1-9]\d{7,14}$/.test(s)) {
+    return `+${s}`;
+  }
+  return null;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
 
@@ -288,6 +315,13 @@ export default function RegisterPage() {
         handleFormError("Please enter your Primary Phone Number.");
         return;
       }
+      const normMobile = normalizeMobileNumber(mobile);
+      if (!normMobile) {
+        handleFormError("Please enter a valid Primary Phone Number (e.g. 10-digit mobile number like 9876543210 or +91 98765 43210).");
+        return;
+      }
+      setMobile(normMobile);
+
       if (!altMobile.trim()) {
         handleFormError("Please enter your Alternate Phone Number.");
         return;
@@ -339,6 +373,11 @@ export default function RegisterPage() {
           handleFormError(`Please enter a phone number for Member #${i + 1} (${m.name}).`);
           return;
         }
+        const normMemberPhone = normalizeMobileNumber(m.phone);
+        if (!normMemberPhone) {
+          handleFormError(`Please enter a valid phone number for Member #${i + 1} (${m.name}) (e.g. 10-digit mobile number or +91 98765 43210).`);
+          return;
+        }
         if (!m.email.trim() || !m.email.includes("@")) {
           handleFormError(`Please enter a valid email address for Member #${i + 1} (${m.name}).`);
           return;
@@ -378,6 +417,13 @@ export default function RegisterPage() {
         handleFormError("Please enter your Primary Phone Number.");
         return;
       }
+      const normMobile = normalizeMobileNumber(mobile);
+      if (!normMobile) {
+        handleFormError("Please enter a valid Primary Phone Number (e.g. 10-digit mobile number like 9876543210 or +91 98765 43210).");
+        return;
+      }
+      setMobile(normMobile);
+
       if (!altMobile.trim()) {
         handleFormError("Please enter your Alternate Phone Number.");
         return;
@@ -404,12 +450,25 @@ export default function RegisterPage() {
         handleFormError("Please provide a primary phone number.");
         return;
       }
+      const normMobile = normalizeMobileNumber(mobile);
+      if (!normMobile) {
+        handleFormError("Please enter a valid Primary Phone Number (e.g. 10-digit mobile number like 9876543210 or +91 98765 43210).");
+        return;
+      }
+      setMobile(normMobile);
     }
 
     setBusy(true);
 
     try {
       const finalLinkedin = normalizeLinkedInUrl(linkedinUrl);
+      const finalMobile = normalizeMobileNumber(mobile) || mobile.trim();
+      const finalAltMobile = normalizeMobileNumber(altMobile) || altMobile.trim();
+      const formattedMembers = members.map((m) => ({
+        ...m,
+        phone: normalizeMobileNumber(m.phone) || m.phone.trim(),
+      }));
+
       const res = await fetch("/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -421,8 +480,8 @@ export default function RegisterPage() {
           photoUrl: leadPhoto || null,
           email: normEmail,
           password: password.trim(),
-          mobile: mobile.trim(),
-          altMobile: altMobile.trim(),
+          mobile: finalMobile,
+          altMobile: finalAltMobile,
           redgNo: isVolunteer ? redgNo.trim() : null,
           rollNo: isVolunteer ? rollNo.trim() : null,
           domain: isStartupOrInnovator ? domain : null,
@@ -430,7 +489,7 @@ export default function RegisterPage() {
           state: state.trim(),
           country: country.trim(),
           linkedinUrl: finalLinkedin || null,
-          members: isStartupOrInnovator ? members : [],
+          members: isStartupOrInnovator ? formattedMembers : [],
         }),
       });
 
@@ -1333,10 +1392,19 @@ export default function RegisterPage() {
                   className="input-field"
                   type="tel"
                   required
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 98765 43210 or 10-digit mobile"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
+                  onBlur={() => {
+                    if (mobile.trim()) {
+                      const formatted = normalizeMobileNumber(mobile);
+                      if (formatted) setMobile(formatted);
+                    }
+                  }}
                 />
+                <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>
+                  Accepts 10-digit mobile (e.g. 9876543210) or international format (+91 98765 43210)
+                </span>
               </div>
 
               <div className="input-group">
@@ -1351,6 +1419,12 @@ export default function RegisterPage() {
                   placeholder="Secondary / Emergency contact"
                   value={altMobile}
                   onChange={(e) => setAltMobile(e.target.value)}
+                  onBlur={() => {
+                    if (altMobile.trim()) {
+                      const formatted = normalizeMobileNumber(altMobile);
+                      if (formatted) setAltMobile(formatted);
+                    }
+                  }}
                 />
               </div>
 
@@ -1583,6 +1657,12 @@ export default function RegisterPage() {
                               placeholder="+91 98765 00000"
                               value={member.phone}
                               onChange={(e) => handleMemberFieldChange(member.id, "phone", e.target.value)}
+                              onBlur={() => {
+                                if (member.phone.trim()) {
+                                  const formatted = normalizeMobileNumber(member.phone);
+                                  if (formatted) handleMemberFieldChange(member.id, "phone", formatted);
+                                }
+                              }}
                             />
                           </div>
 
