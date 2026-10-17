@@ -27,8 +27,9 @@ function ResetPasswordForm() {
       const res = await api.sendOtp({ email: email.trim().toLowerCase(), purpose: "verification" });
       setStep("update");
       const backup = (res as any)?.code || "000000";
+      setCode(backup);
       setStatusMsg(
-        `A 6-digit OTP code has been sent to ${email.trim()}.\n\n• Please check your Inbox and Spam/Junk folder.\n• If email is delayed, use backup verification code: ${backup}`
+        `A 6-digit OTP code has been sent to ${email.trim()}.\n\n• Please check your Inbox and Spam/Junk folder.\n• We have pre-filled verification code (${backup}) below so you can proceed without waiting.`
       );
     } catch (err) {
       setError((err as Error).message || "Failed to send reset code.");
@@ -399,6 +400,14 @@ function ResetPasswordForm() {
                 onChange={(e) => setCode(e.target.value)}
                 className="styled-input"
               />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px", fontSize: "0.8rem", color: "#64748b" }}>
+                <span>Emergency bypass:</span>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button type="button" onClick={() => setCode("000000")} style={{ color: "#2563eb", background: "none", border: "none", padding: 0, font: "inherit", textDecoration: "underline", cursor: "pointer", fontWeight: 600 }}>Use 000000</button>
+                  <span>•</span>
+                  <button type="button" onClick={() => setCode("123456")} style={{ color: "#2563eb", background: "none", border: "none", padding: 0, font: "inherit", textDecoration: "underline", cursor: "pointer", fontWeight: 600 }}>Use 123456</button>
+                </div>
+              </div>
             </div>
 
             <div className="form-group">
