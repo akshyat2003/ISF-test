@@ -186,6 +186,7 @@ export default function RegisterPage() {
     leadPhoto: string;
     redgNo?: string;
     rollNo?: string;
+    linkedinUrl?: string;
     members: TeamMemberInput[];
   } | null>(null);
 
@@ -393,6 +394,10 @@ export default function RegisterPage() {
         handleFormError("Please enter your Country.");
         return;
       }
+      if (linkedinUrl.trim()) {
+        const formattedLinkedin = normalizeLinkedInUrl(linkedinUrl);
+        setLinkedinUrl(formattedLinkedin);
+      }
     } else {
       // General validation for other categories
       if (!mobile.trim()) {
@@ -424,7 +429,7 @@ export default function RegisterPage() {
           city: city.trim(),
           state: state.trim(),
           country: country.trim(),
-          linkedinUrl: isStartupOrInnovator ? finalLinkedin : null,
+          linkedinUrl: finalLinkedin || null,
           members: isStartupOrInnovator ? members : [],
         }),
       });
@@ -448,6 +453,7 @@ export default function RegisterPage() {
         leadPhoto: leadPhoto,
         redgNo: isVolunteer ? redgNo.trim() : undefined,
         rollNo: isVolunteer ? rollNo.trim() : undefined,
+        linkedinUrl: finalLinkedin || undefined,
         members: isStartupOrInnovator ? members : [],
       });
     } catch (err) {
@@ -626,12 +632,14 @@ export default function RegisterPage() {
           <div className="info-box">
             {registered.teamName && (
               <div className="info-row">
-                <span className="info-label">{isVolunteer ? "Organisation Name:" : "Startup / Team Name:"}</span>
+                <span className="info-label">
+                  {isVolunteer ? "Organisation Name:" : isStudentInnovator ? "Project / Team Name:" : "Startup / Company Name:"}
+                </span>
                 <span className="info-val">{registered.teamName}</span>
               </div>
             )}
             <div className="info-row">
-              <span className="info-label">{isVolunteer ? "Volunteer Full Name:" : "Team Lead:"}</span>
+              <span className="info-label">{isVolunteer ? "Volunteer Full Name:" : "Team Lead Full Name:"}</span>
               <span className="info-val">{registered.fullName}</span>
             </div>
             {registered.redgNo && (
@@ -644,6 +652,27 @@ export default function RegisterPage() {
               <div className="info-row">
                 <span className="info-label">Roll Number / Student ID:</span>
                 <span className="info-val">{registered.rollNo}</span>
+              </div>
+            )}
+            {isStartupOrInnovator && domain && (
+              <div className="info-row">
+                <span className="info-label">Domain / Sector:</span>
+                <span className="info-val">{domain}</span>
+              </div>
+            )}
+            {registered.linkedinUrl && (
+              <div className="info-row">
+                <span className="info-label">LinkedIn Profile:</span>
+                <span className="info-val">
+                  <a
+                    href={registered.linkedinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#2563eb", textDecoration: "none" }}
+                  >
+                    {registered.linkedinUrl} ↗
+                  </a>
+                </span>
               </div>
             )}
             <div className="info-row">
@@ -1258,14 +1287,14 @@ export default function RegisterPage() {
 
               <div className="input-group">
                 <label className="input-label" htmlFor="email">
-                  <span>{isVolunteer ? "Email Address" : "Official Email Address"} <span className="input-req">*</span></span>
+                  <span>{isVolunteer ? "Email Address" : isStudentInnovator ? "Email Address" : "Official Email Address"} <span className="input-req">*</span></span>
                 </label>
                 <input
                   id="email"
                   className="input-field"
                   type="email"
                   required
-                  placeholder={isVolunteer ? "volunteer@college.edu" : "name@company.com"}
+                  placeholder={isVolunteer ? "volunteer@college.edu" : isStudentInnovator ? "innovator@college.edu" : "name@company.com"}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -1390,34 +1419,32 @@ export default function RegisterPage() {
                 />
               </div>
 
-              {!isVolunteer && (
-                <div className="input-group form-full">
-                  <label className="input-label" htmlFor="linkedinUrl">
-                    <span>LinkedIn Profile / URL <span className="input-req">*</span></span>
-                  </label>
-                  <input
-                    id="linkedinUrl"
-                    className="input-field"
-                    type="text"
-                    inputMode="url"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    required
-                    placeholder="e.g. linkedin.com/in/username or https://www.linkedin.com/in/username"
-                    value={linkedinUrl}
-                    onChange={(e) => setLinkedinUrl(e.target.value)}
-                    onBlur={() => {
-                      if (linkedinUrl.trim()) {
-                        setLinkedinUrl(normalizeLinkedInUrl(linkedinUrl));
-                      }
-                    }}
-                  />
-                  <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>
-                    Accepts LinkedIn URL, www.linkedin.com/in/..., or your profile username (we'll format it automatically)
-                  </span>
-                </div>
-              )}
+              <div className="input-group form-full">
+                <label className="input-label" htmlFor="linkedinUrl">
+                  <span>LinkedIn Profile / URL {isStartupOrInnovator && <span className="input-req">*</span>}</span>
+                </label>
+                <input
+                  id="linkedinUrl"
+                  className="input-field"
+                  type="text"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  required={isStartupOrInnovator}
+                  placeholder="e.g. linkedin.com/in/username or https://www.linkedin.com/in/username"
+                  value={linkedinUrl}
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                  onBlur={() => {
+                    if (linkedinUrl.trim()) {
+                      setLinkedinUrl(normalizeLinkedInUrl(linkedinUrl));
+                    }
+                  }}
+                />
+                <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>
+                  Accepts LinkedIn URL, www.linkedin.com/in/..., or your profile username (we'll format it automatically)
+                </span>
+              </div>
 
               {/* Photograph Upload Card */}
               <div className="form-full" style={{ marginTop: "4px" }}>

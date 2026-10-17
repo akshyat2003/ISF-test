@@ -596,9 +596,9 @@ async function handler(request: Request) {
         on conflict do nothing
       `;
 
-      // If teamName provided, link to startups
+      // If teamName provided, link to startups (for startups & student innovators)
       let startupId: string | null = null;
-      if (teamName) {
+      if (teamName && !isVolunteer) {
         const [existingStartup] = await sql`
           select id from startups where name_normalized = lower(regexp_replace(trim(${teamName}), '\\s+', ' ', 'g')) limit 1
         `;
