@@ -103,8 +103,9 @@ export function createApi({ baseUrl, getToken }: ApiOptions) {
   async function req<T>(method: "GET" | "POST" | "PUT" | "DELETE", path: string, body?: unknown): Promise<T> {
     const token = await getToken();
     let res: Response;
+    const url = baseUrl ? `${baseUrl.replace(/\/$/, "")}${path}` : path;
     try {
-      res = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, {
+      res = await fetch(url, {
         method,
         headers: { ...(body !== undefined ? { "content-type": "application/json" } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
         body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -113,8 +114,16 @@ export function createApi({ baseUrl, getToken }: ApiOptions) {
       throw new ApiError({ type: "about:blank", title: "Cannot reach the server", status: 0, code: "network_error", detail: "Check your connection and try again." });
     }
     const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
-    if (!res.ok) throw new ApiError(data ?? { type: "about:blank", title: res.statusText, status: res.status, code: "http_error" });
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (!res.ok) {
+      const errDetail = data?.message || data?.detail || res.statusText || `HTTP ${res.status}`;
+      throw new ApiError(data && typeof data === "object" && (data.code || data.title) ? data : { type: "about:blank", title: errDetail, status: res.status, code: "http_error", detail: errDetail });
+    }
     return data as T;
   }
 

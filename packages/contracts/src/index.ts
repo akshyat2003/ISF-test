@@ -624,7 +624,7 @@ export type DevSessionRequest = z.input<typeof DevSessionRequest>;
 
 export const SendOtpRequest = z.object({
   email: z.string().trim().toLowerCase().email(),
-  purpose: z.enum(["login", "signup", "verification"]).default("login"),
+  purpose: z.enum(["login", "signup", "verification", "password_reset"]).default("login"),
 });
 export type SendOtpRequest = z.infer<typeof SendOtpRequest>;
 
@@ -669,7 +669,7 @@ export type UpdatePasswordResponse = z.infer<typeof UpdatePasswordResponse>;
 // ---------------------------------------------------------------- post-sign-in redirects (open-redirect protection)
 /** Internal destinations each web interface may return to after sign-in or MFA. Anything else falls back. */
 export const WEB_RETURN_PATHS = ["/", "/signin", "/signup", "/register", "/status", "/activate", "/privacy", "/event", "/reset-password"] as const;
-export const CONSOLE_RETURN_PATHS = ["/", "/login", "/applications", "/ranking", "/jury", "/volunteers", "/content", "/notices", "/support", "/users", "/imports"] as const;
+export const CONSOLE_RETURN_PATHS = ["/", "/login", "/reset-password", "/applications", "/ranking", "/jury", "/volunteers", "/content", "/notices", "/support", "/users", "/imports"] as const;
 
 const REDIRECT_BASE = "https://internal.invalid";
 

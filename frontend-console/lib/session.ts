@@ -4,14 +4,7 @@ import { createSession } from "@sj/web-session";
 // Staff sign in with their work email. Staff roles require MFA (aal2) when REQUIRE_STAFF_MFA=true, which is
 // mandatory in production (FR-IAM-11); see app/mfa.
 const resolveApiUrl = () => {
-  if (typeof window !== "undefined") {
-    const envUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
-      return envUrl;
-    }
-    return "";
-  }
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4000";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 };
 
 export const { api, authMode, startSignIn, verifyCode, signOut, useSessionIdentity, mfa } = createSession({
