@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 import { normaliseMobile, type SignInIdentifier, type SignInMethod } from "@sj/contracts";
-import { Button, Choice, Field, H1, Notice, OrganizerLogos, P, Screen, UdbhavEmblem } from "../components/ui";
+import { Button, Choice, Field, H1, Notice, P, Screen, UdbhavEmblem } from "../components/ui";
 import { messageOf, useSession } from "../lib/session";
 
 const LABEL: Record<SignInMethod, string> = { email: "Sign in with email", phone: "Sign in with mobile number" };
@@ -30,7 +30,6 @@ export default function SignIn() {
   return (
     <Screen>
       <UdbhavEmblem size={110} showTitle subtitle="Innovation & Excellence · ISF · GIET University" />
-      <OrganizerLogos compact title="In Association With" />
       <P muted>Startup Jathara @ Dandakaranya · 18–20 December 2026</P>
       <P>Sign in with a one-time code. If the event team registered you, use the email or mobile number they hold for you.</P>
       {!who && signInMethods.length > 1 && (

@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 import { formatIst } from "@sj/client";
 import type { EventInfo } from "@sj/contracts";
-import { Badge, Button, Card, H1, H2, Loading, Notice, OrganizerLogos, P, Screen, colors } from "../components/ui";
+import { Badge, Button, Card, H1, H2, Loading, Notice, P, Screen, colors } from "../components/ui";
 import { messageOf, useSession } from "../lib/session";
 
 const MEAL = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snacks: "Snacks", other: "Food" } as const;
@@ -31,7 +31,6 @@ export default function EventScreen() {
     <Screen>
       <H1>{e.edition.name}</H1>
       <P muted small>The programme is tentative and may change.{e.lastUpdated ? ` Last updated ${formatIst(e.lastUpdated)} IST.` : ""}</P>
-      <OrganizerLogos compact title="Organized & Presented By" />
 
       <Card>
         <H2>Emergency</H2>

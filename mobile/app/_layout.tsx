@@ -29,7 +29,7 @@ export default function RootLayout() {
           <Stack.Screen name="signin" options={{ title: "Udbhav · Sign in", headerBackVisible: false }} />
           <Stack.Screen name="activate" options={{ title: "Activate account" }} />
           <Stack.Screen name="home" options={{ title: "Udbhav", headerBackVisible: false }} />
-          <Stack.Screen name="register" options={{ title: "Register a startup" }} />
+          <Stack.Screen name="register" options={{ title: "Summit Registration" }} />
           <Stack.Screen name="status" options={{ title: "Application status" }} />
           <Stack.Screen name="notifications" options={{ title: "Messages" }} />
           <Stack.Screen name="jury/index" options={{ title: "Jury" }} />

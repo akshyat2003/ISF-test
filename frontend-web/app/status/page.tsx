@@ -43,7 +43,7 @@ export default function StatusPage() {
       <div className="card" style={{ maxWidth: 560 }}>
         <h1>Application status</h1>
         <p>No application is linked to {email} yet.</p>
-        <Link className="btn btn-primary" href="/register">Register your startup</Link>
+        <Link className="btn btn-primary" href="/register">Register for Summit</Link>
       </div>
     );
   }

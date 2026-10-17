@@ -72,7 +72,7 @@ export default function Register() {
 
   return (
     <Screen>
-      <H1>Register your startup</H1>
+      <H1>Summit Registration</H1>
       <P muted>Fields marked * are required.</P>
       {problem && <Notice kind="error">{problem}</Notice>}
       <Card>

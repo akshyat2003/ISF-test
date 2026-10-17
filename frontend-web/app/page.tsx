@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import type { PublicEdition } from "@sj/contracts";
 import { formatDateRange, formatIst } from "@sj/client";
-import { OrganizerLogos } from "./organizer-logos";
 
 export const dynamic = "force-dynamic";
 
@@ -45,14 +44,10 @@ export default async function Home() {
           and ecosystem discussions, organised by GIET University in association with the International Startup Foundation and Incubatex Innovation.
         </p>
         <div className="actions">
-          <Link href="/signup" className="btn btn-primary">Sign up (Leader / Member / Volunteer / Management)</Link>
-          <Link href="/register" className="btn">Register your startup</Link>
-          <Link href="/status" className="btn">Check application status</Link>
-          <Link href="/event" className="btn">Programme and event information</Link>
+          <Link href="/register" className="btn btn-primary">Summit Registration (All Tracks) →</Link>
+          <Link href="/signin" className="btn">Sign In to Dashboard</Link>
         </div>
       </section>
-
-      <OrganizerLogos layout="cards" title="Presented & Organised by" />
 
       <h2 style={{ marginTop: 40 }}>Registration</h2>
       {editions ? (

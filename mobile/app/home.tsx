@@ -3,7 +3,7 @@ import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { formatDateRange } from "@sj/client";
 import type { MyApplicationsResponse, PublicEdition } from "@sj/contracts";
-import { Badge, Button, Card, H1, H2, Loading, Notice, OrganizerLogos, P, Screen, UdbhavEmblem, colors } from "../components/ui";
+import { Badge, Button, Card, H1, H2, Loading, Notice, P, Screen, UdbhavEmblem, colors } from "../components/ui";
 import { ROLE_LABEL, STAFF_ROLES, STATUS_LABEL, STATUS_TONE } from "../lib/labels";
 import { messageOf, useSession } from "../lib/session";
 
@@ -55,7 +55,6 @@ export default function Home() {
           {roles.map((r) => <Badge key={r} text={ROLE_LABEL[r]} tone="ok" />)}
         </View>
       )}
-      <OrganizerLogos compact title="In Association With" />
 
       {me.editionAccess.map((year) => {
         const e = editions.find((x) => x.year === year);
@@ -66,7 +65,7 @@ export default function Home() {
             {e?.eventStartsOn && e.eventEndsOn ? <P>{formatDateRange(e.eventStartsOn, e.eventEndsOn)} · GIET University, Gunupur</P> : <P muted>Dates to be announced.</P>}
             {apps.startup && <P>Startup: <Text style={{ fontWeight: "700" }}>{apps.startup.name}</Text></P>}
             <P muted small>Schedule, venues, food, accommodation, safety and emergency contacts, as the event team publishes them. Notices arrive in Messages.</P>
-            <Button title="Programme and event information" onPress={() => router.push({ pathname: "/event", params: { year: String(year) } })} />
+            <Button title="Event Details" onPress={() => router.push({ pathname: "/event", params: { year: String(year) } })} />
             {me.permissions.includes("helpdesk.use") && (
               <Button title="Help: ask a question" kind="secondary" onPress={() => router.push({ pathname: "/help", params: { year: String(year) } })} />
             )}
@@ -99,8 +98,8 @@ export default function Home() {
       )}
 
       {canApply && (
-        <Card onPress={() => router.push("/register")} label="Register a startup">
-          <H2>{apps.applications.length ? "Apply for another year" : "Register a new startup"}</H2>
+        <Card onPress={() => router.push("/register")} label="Summit Registration">
+          <H2>{apps.applications.length ? "Apply for another year" : "Summit Registration"}</H2>
           <P muted>Apply for {openEditions.map((e) => e.year).join(" or ")}. Management reviews every application.</P>
         </Card>
       )}

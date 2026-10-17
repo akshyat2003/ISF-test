@@ -24,7 +24,7 @@ export default function Status() {
     return (
       <Screen>
         <P>No application is linked to this account.</P>
-        <Button title="Register a startup" onPress={() => router.push("/register")} />
+        <Button title="Summit Registration" onPress={() => router.push("/register")} />
       </Screen>
     );
   }
