@@ -431,13 +431,6 @@ function SignInForm() {
               <Link href="/reset-password" className="action-link">
                 Forgot your password?
               </Link>
-              <a
-                href="#otp"
-                className="action-link"
-                onClick={(e) => { e.preventDefault(); void handleSendOtp(); }}
-              >
-                Send a code to {email}
-              </a>
             </div>
 
             <button type="submit" className="btn-next" disabled={busy}>
