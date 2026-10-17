@@ -48,7 +48,7 @@ function Queue() {
   };
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin?next=/support">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login?next=/support">log in</Link>.</p>;
   if (me?.mfaRequired) return <MfaPrompt next="/support" />;
   if (me && !allowed) return <p className="notice notice-error">Your account does not have Customer Support or Management permissions.</p>;
 

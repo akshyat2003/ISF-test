@@ -30,7 +30,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href={`/signin?next=/users/${id}`}>sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href={`/login?next=/users/${id}`}>log in</Link>.</p>;
   if (me?.mfaRequired) return <MfaPrompt />;
   if (me && !can(me, "user.read")) return <p className="notice notice-error">Your account does not have Admin permissions.</p>;
   const self = me?.account?.id === id;

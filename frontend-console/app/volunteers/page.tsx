@@ -59,7 +59,7 @@ function Volunteers() {
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin?next=/volunteers">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login?next=/volunteers">log in</Link>.</p>;
   const run = o?.draftRun;
 
   return (

@@ -35,8 +35,8 @@ function MfaStep() {
   }
 
   if (who === undefined) return null;
-  if (!who) return <p>Please <Link href="/signin">sign in</Link>.</p>;
-  if (factorId === undefined) return error ? <p className="notice notice-error">{error}</p> : <p className="muted">Checking your sign-in…</p>;
+  if (!who) return <p>Please <Link href="/login">log in</Link>.</p>;
+  if (factorId === undefined) return error ? <p className="notice notice-error">{error}</p> : <p className="muted">Checking your log-in…</p>;
 
   const needsEnrolment = authMode === "supabase" && !factorId && !enrolment;
   return (

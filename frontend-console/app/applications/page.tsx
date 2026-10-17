@@ -60,7 +60,7 @@ function Applications() {
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin?next=/applications">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login?next=/applications">log in</Link>.</p>;
 
   const drafts = data?.items.filter((i) => i.decision && !i.decision.releasedAt) ?? [];
   return (

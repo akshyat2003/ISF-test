@@ -49,7 +49,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
   }, [active, load]);
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href={`/signin?next=/ranking/${id}`}>sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href={`/login?next=/ranking/${id}`}>log in</Link>.</p>;
   if (error === "mfa_required") return <MfaPrompt next={`/ranking/${id}`} />;
   if (error && !run) return <p className="notice notice-error" role="alert">{error}</p>;
   if (!run) return <p className="muted">Loading…</p>;

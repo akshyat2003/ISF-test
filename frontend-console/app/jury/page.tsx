@@ -72,7 +72,7 @@ function Jury() {
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin?next=/jury">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login?next=/jury">log in</Link>.</p>;
   const set = (i: number, patch: Partial<Draft>) =>
     setEditing((e) => e && { ...e, parameters: e.parameters.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
 

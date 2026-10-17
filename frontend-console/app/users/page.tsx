@@ -83,7 +83,7 @@ function Users() {
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin?next=/users">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login?next=/users">log in</Link>.</p>;
   if (me?.mfaRequired) return <MfaPrompt next="/users" />;
   if (me && !can(me, "user.read")) return <p className="notice notice-error">Your account does not have Admin permissions.</p>;
 
@@ -161,7 +161,7 @@ function Users() {
                 </p>
               ) : (
                 <p style={{ margin: "0 0 10px" }} className="muted small">
-                  An activation code has been automated to their email/mobile. They can sign in directly using their email or mobile.
+                  An activation code has been automated to their email/mobile. They can log in directly using their email or mobile.
                 </p>
               )}
               <button type="button" className="btn btn-sm" onClick={copyCredentials}>

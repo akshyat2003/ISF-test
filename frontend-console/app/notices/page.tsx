@@ -53,7 +53,7 @@ function Notices() {
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin?next=/notices">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login?next=/notices">log in</Link>.</p>;
 
   return (
     <>

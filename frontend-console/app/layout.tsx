@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import "./globals.css";
 import { Nav } from "./nav";
 
@@ -12,9 +11,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <header className="site-header">
           <div className="container">
-            <Link href="/" className="brand" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Image src="/logos/udbhav.png" alt="Udbhav" width={34} height={34} style={{ borderRadius: 6, objectFit: "contain" }} />
-              <span>Udbhav <span>Console</span></span>
+            <Link href="/" className="brand">
+              Udbhav <span>Console</span>
             </Link>
             <Nav />
           </div>

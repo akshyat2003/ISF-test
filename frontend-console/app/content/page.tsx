@@ -91,7 +91,7 @@ function Content() {
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin?next=/content">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login?next=/content">log in</Link>.</p>;
   const go = (q: Record<string, string>) => router.push(`/content?${new URLSearchParams({ edition: String(year), tab, ...q })}`);
   const canEdit = (t: Tab) => !!o && (t === "documents" || ["safety_guideline", "emergency_contact", "page"].includes(t) ? o.canEditSource : o.canEditOperational);
   const items = o?.items.filter((i) => i.type === tab) ?? [];

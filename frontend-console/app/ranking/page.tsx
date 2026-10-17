@@ -78,7 +78,7 @@ function Ranking() {
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin?next=/ranking">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login?next=/ranking">log in</Link>.</p>;
   const set = (i: number, patch: Partial<Draft>) =>
     setEditing((e) => e && { ...e, criteria: e.criteria.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
   const weightSum = editing?.criteria.reduce((a, c) => a + (Number(c.weight) || 0), 0) ?? 0;

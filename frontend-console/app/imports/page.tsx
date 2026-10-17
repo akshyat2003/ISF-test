@@ -44,7 +44,7 @@ export default function Imports() {
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin?next=/imports">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login?next=/imports">log in</Link>.</p>;
   if (me?.mfaRequired) return <MfaPrompt next="/imports" />;
   if (me && !can(me, "import.manage")) return <p className="notice notice-error">Your account does not have Admin permissions.</p>;
   const cols = IMPORT_COLUMNS[category];

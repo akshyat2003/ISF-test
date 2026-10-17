@@ -42,7 +42,7 @@ export default function Home() {
     }
   }, [me, router]);
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/signin">sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href="/login">log in</Link>.</p>;
   if (error) return <p className="notice notice-error" role="alert">{error}</p>;
   if (!me) return <p className="muted">Loading…</p>;
   if (me.account?.status === "pending_activation") {

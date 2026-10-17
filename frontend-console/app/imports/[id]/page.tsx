@@ -31,7 +31,7 @@ export default function ImportPage({ params }: { params: Promise<{ id: string }>
   }
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href={`/signin?next=/imports/${id}`}>sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href={`/login?next=/imports/${id}`}>log in</Link>.</p>;
   if (me?.mfaRequired) return <MfaPrompt />;
   if (me && !can(me, "import.manage")) return <p className="notice notice-error">Your account does not have Admin permissions.</p>;
   if (!b) return error ? <p className="notice notice-error">{error}</p> : <p className="muted">Loading…</p>;

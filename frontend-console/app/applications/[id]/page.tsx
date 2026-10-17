@@ -48,7 +48,7 @@ export default function ApplicationDetail({ params }: { params: Promise<{ id: st
   const decide = (outcome: "selected" | "not_selected") => run(() => api.manage.decide(id, { outcome, reason: reason.trim() || undefined }));
 
   if (email === undefined) return null;
-  if (!email) return <p>Please <Link href={`/signin?next=/applications/${id}`}>sign in</Link>.</p>;
+  if (!email) return <p>Please <Link href={`/login?next=/applications/${id}`}>log in</Link>.</p>;
   if (error && !a) return <p className="notice notice-error">{error}</p>;
   if (!a) return <p className="muted">Loading…</p>;
   const released = !!a.decision?.releasedAt;
