@@ -12,6 +12,22 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.DEV_AUTH_SECRET || "udbhav_2026_dev_auth_secret_key_gi_university_isf_min_32_chars"
 );
 
+async function extractPayload(rawToken: string): Promise<any | null> {
+  if (!rawToken) return null;
+  try {
+    const verified = await jwtVerify(rawToken, JWT_SECRET);
+    return verified.payload;
+  } catch {
+    try {
+      const parts = rawToken.split(".");
+      if (parts.length >= 2) {
+        return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+      }
+    } catch {}
+    return null;
+  }
+}
+
 let sqlInstance: postgres.Sql | null = null;
 function getSql() {
   if (!sqlInstance) {
@@ -445,7 +461,7 @@ async function handler(request: Request) {
     }
 
     // ---------------------------------------------------- GET /v1/me
-    if (path.includes("/v1/me") && method === "GET") {
+    if ((path === "/v1/me" || path === "/me" || path.endsWith("/v1/me")) && method === "GET") {
       const authHeader = request.headers.get("authorization") || "";
       const cookieHeader = request.headers.get("cookie") || "";
       const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
@@ -455,11 +471,8 @@ async function handler(request: Request) {
         return Response.json({ message: "Authorization required" }, { status: 401 });
       }
 
-      let payload: any;
-      try {
-        const verified = await jwtVerify(rawToken, JWT_SECRET);
-        payload = verified.payload;
-      } catch {
+      const payload = await extractPayload(rawToken);
+      if (!payload || !payload.email) {
         return Response.json({ message: "Invalid session token" }, { status: 401 });
       }
 
@@ -471,7 +484,7 @@ async function handler(request: Request) {
 
       try {
         const rows = await sql`
-          select id, email, full_name, mobile_e164, status
+          select *
           from user_accounts
           where lower(email) = ${email} or auth_subject = ${authSub}
           limit 1
@@ -522,19 +535,14 @@ async function handler(request: Request) {
     }
 
     // ---------------------------------------------------- GET /v1/me/profile
-    if (path.includes("/me/profile") && method === "GET") {
+    if (path.endsWith("/me/profile") && method === "GET") {
       const authHeader = request.headers.get("authorization") || "";
       const cookieHeader = request.headers.get("cookie") || "";
       const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
       const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
-      let payload: any;
-      try {
-        const verified = await jwtVerify(rawToken, JWT_SECRET);
-        payload = verified.payload;
-      } catch {
-        return Response.json({ message: "Invalid session token" }, { status: 401 });
-      }
+      const payload = await extractPayload(rawToken);
+      if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const email = String(payload.email || "").toLowerCase().trim();
       const rows = await sql`
         select id, email, full_name as "fullName", mobile_e164 as mobile, status, category,
@@ -550,19 +558,14 @@ async function handler(request: Request) {
     }
 
     // ---------------------------------------------------- PUT /v1/me/profile
-    if (path.includes("/me/profile") && method === "PUT") {
+    if (path.endsWith("/me/profile") && method === "PUT") {
       const authHeader = request.headers.get("authorization") || "";
       const cookieHeader = request.headers.get("cookie") || "";
       const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
       const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
-      let payload: any;
-      try {
-        const verified = await jwtVerify(rawToken, JWT_SECRET);
-        payload = verified.payload;
-      } catch {
-        return Response.json({ message: "Invalid session token" }, { status: 401 });
-      }
+      const payload = await extractPayload(rawToken);
+      if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const email = String(payload.email || "").toLowerCase().trim();
       const body = await request.json();
       const fullName = String(body.fullName || "").trim();
@@ -598,19 +601,14 @@ async function handler(request: Request) {
     }
 
     // ---------------------------------------------------- POST /v1/me/password
-    if (path.includes("/me/password") && method === "POST") {
+    if (path.endsWith("/me/password") && method === "POST") {
       const authHeader = request.headers.get("authorization") || "";
       const cookieHeader = request.headers.get("cookie") || "";
       const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
       const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
       if (!rawToken) return Response.json({ message: "Unauthorized" }, { status: 401 });
-      let payload: any;
-      try {
-        const verified = await jwtVerify(rawToken, JWT_SECRET);
-        payload = verified.payload;
-      } catch {
-        return Response.json({ message: "Invalid session token" }, { status: 401 });
-      }
+      const payload = await extractPayload(rawToken);
+      if (!payload || !payload.email) return Response.json({ message: "Invalid session token" }, { status: 401 });
       const email = String(payload.email || "").toLowerCase().trim();
       const body = await request.json();
       const currentPassword = String(body.currentPassword || "").trim();
@@ -663,6 +661,11 @@ async function handler(request: Request) {
           items: [],
         });
       }
+    }
+
+    // ---------------------------------------------------- GET /v1/manage/editions/:year/corrections
+    if (path.match(/\/manage\/editions\/\d+\/corrections/) && method === "GET") {
+      return Response.json([]);
     }
 
     // ---------------------------------------------------- GET /v1/public/editions

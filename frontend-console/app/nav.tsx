@@ -19,7 +19,6 @@ export function Nav() {
       {(isAdmin || can(me, "notice.publish")) && <Link href="/notices">Notices</Link>}
       {(isAdmin || can(me, "user.read")) && <Link href="/users">Accounts</Link>}
       {(isAdmin || can(me, "import.manage")) && <Link href="/imports">Imports</Link>}
-      {(me || email) && <Link href="/profile">Profile</Link>}
       {me?.mfaRequired && <Link href="/mfa">Verify MFA</Link>}
       <Account />
     </nav>

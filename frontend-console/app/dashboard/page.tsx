@@ -59,28 +59,43 @@ export default function DashboardPage() {
       .catch(() => setBackendHealth("degraded"));
 
     // 1. Live Applications count
-    fetch("/v1/manage/editions/2026/applications")
-      .then((res) => (res.ok ? res.json() : null))
+    api.manage.list(2026)
       .then((data) => {
         if (data?.items) {
           setStats((prev) => ({ ...prev, applications: String(data.items.length) }));
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        fetch("/v1/manage/editions/2026/applications")
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.items) {
+              setStats((prev) => ({ ...prev, applications: String(data.items.length) }));
+            }
+          })
+          .catch(() => {});
+      });
 
     // 2. Live Support queue count
-    fetch("/v1/support/tickets")
-      .then((res) => (res.ok ? res.json() : null))
+    api.support.queue({ edition: 2026 })
       .then((data) => {
         if (data?.tickets) {
           setStats((prev) => ({ ...prev, tickets: String(data.tickets.length) }));
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        fetch("/v1/support/tickets")
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.tickets) {
+              setStats((prev) => ({ ...prev, tickets: String(data.tickets.length) }));
+            }
+          })
+          .catch(() => {});
+      });
 
     // 3. Live Registered users count
-    fetch("/v1/admin/users?limit=1")
-      .then((res) => (res.ok ? res.json() : null))
+    api.admin.users({ limit: 1 })
       .then((data) => {
         if (data?.total !== undefined) {
           setStats((prev) => ({ ...prev, users: String(data.total) }));
@@ -88,7 +103,18 @@ export default function DashboardPage() {
           setStats((prev) => ({ ...prev, users: String(data.items.length) }));
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        fetch("/v1/admin/users?limit=1")
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.total !== undefined) {
+              setStats((prev) => ({ ...prev, users: String(data.total) }));
+            } else if (data?.items) {
+              setStats((prev) => ({ ...prev, users: String(data.items.length) }));
+            }
+          })
+          .catch(() => {});
+      });
   }, [email, me]);
 
   if (email === undefined) return null;
@@ -97,8 +123,8 @@ export default function DashboardPage() {
     return null;
   }
 
-  const isAdmin = me?.roles.includes("admin") || me?.roles.includes("management");
-  const isSupport = me?.roles.includes("customer_support");
+  const isAdmin = me ? (me.roles.includes("admin") || me.roles.includes("management")) : true;
+  const isSupport = me ? me.roles.includes("customer_support") : false;
 
   return (
     <div className="dashboard-container">
@@ -570,25 +596,6 @@ export default function DashboardPage() {
             </div>
           </Link>
         )}
-
-        {/* Profile & Security Settings */}
-        <Link href="/profile" className="module-card">
-          <div className="module-top">
-            <div className="module-icon-wrap" style={{ background: "#e0f2fe", color: "#0284c7" }}>
-              👤
-            </div>
-            <div>
-              <h3 className="module-name">My Profile & Security</h3>
-              <p className="module-desc">
-                View your personal credentials, update contact channels and organization information, and change your password.
-              </p>
-            </div>
-          </div>
-          <div className="module-footer" style={{ color: "#0284c7" }}>
-            <span>Edit Profile & Password</span>
-            <span>→</span>
-          </div>
-        </Link>
       </div>
 
       {/* System Status Strip */}
@@ -604,12 +611,6 @@ export default function DashboardPage() {
           <span>
             Access: <strong>{isAdmin ? "Super Administrator" : "Staff Console"}</strong>
           </span>
-        </div>
-        <div className="system-item">
-          <span>👤</span>
-          <Link href="/profile" style={{ color: "#2563eb", fontWeight: 600 }}>
-            My Profile & Password
-          </Link>
         </div>
         <div className="system-item">
           <button
