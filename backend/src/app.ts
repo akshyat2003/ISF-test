@@ -565,15 +565,20 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return sendOtpEmail(body.email, body.purpose);
   });
 
-  app.post("/v1/auth/otp/verify", async (req) => {
+  app.post("/v1/auth/otp/verify", async (req, reply) => {
     const body = parse(VerifyOtpRequest, req.body);
-    return verifyOtpAndLogin(
+    const result = await verifyOtpAndLogin(
       sql,
       config.devAuthSecret ?? "dev-auth-secret-for-jwt-signing-12345",
       body.email,
       body.code,
       body.password,
     );
+    reply.header(
+      "set-cookie",
+      `sj_token=${encodeURIComponent(result.token)}; Path=/; Max-Age=86400; SameSite=Lax`
+    );
+    return result;
   });
 
   app.post("/v1/auth/password/update", async (req) => {

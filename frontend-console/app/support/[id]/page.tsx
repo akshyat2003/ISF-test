@@ -2,6 +2,7 @@
 // One support ticket (FR-SUP-02…13): authorised requester details, the Help Desk transcript, the full history, and
 // the actions Customer Support may take. Management sees the same page read-only. Every view and action is audited.
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useState } from "react";
 import type { SupportTicketDetail } from "@sj/contracts";
 import { formatIst } from "@sj/client";
@@ -25,6 +26,7 @@ function describe(kind: string, d: Record<string, unknown>, names: Map<string, s
 }
 
 export default function TicketPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const { id } = use(params);
   const { me, email } = useMe();
   const [t, setT] = useState<SupportTicketDetail | null>(null);
@@ -52,8 +54,11 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
     try { setT(await fn()); after?.(); } catch (e) { setError((e as Error).message); await load(); } finally { setBusy(false); }
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href={`/login?next=/support/${id}`}>log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace(`/login?next=/support/${id}`);
+  }, [email, router, id]);
+
+  if (email === undefined || email === null) return null;
   if (me?.mfaRequired) return <MfaPrompt />;
   if (me && !allowed) return <p className="notice notice-error">Your account does not have Customer Support or Management permissions.</p>;
 

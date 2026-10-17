@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useState } from "react";
 import { ROLES, type ActivationIssued, type AdminUser, type Role } from "@sj/contracts";
 import { formatIst } from "@sj/client";
@@ -10,6 +11,7 @@ import { MfaPrompt } from "../../mfa-prompt";
 const label = (s: string) => s.replace(/_/g, " ");
 
 export default function UserPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const { id } = use(params);
   const { me, email } = useMe();
   const [u, setU] = useState<AdminUser | null>(null);
@@ -29,8 +31,11 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
     try { const r = await fn(); if (r) setU(r); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href={`/login?next=/users/${id}`}>log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace(`/login?next=/users/${id}`);
+  }, [email, router, id]);
+
+  if (email === undefined || email === null) return null;
   if (me?.mfaRequired) return <MfaPrompt />;
   if (me && !can(me, "user.read")) return <p className="notice notice-error">Your account does not have Admin permissions.</p>;
   const self = me?.account?.id === id;

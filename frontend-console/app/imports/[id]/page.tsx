@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useState } from "react";
 import { IMPORT_COLUMNS, type ImportBatchDetail, type ImportRow } from "@sj/contracts";
 import { formatIst } from "@sj/client";
@@ -12,6 +13,7 @@ const OUTCOME_TEXT: Record<ImportRow["outcome"], string> = {
 };
 
 export default function ImportPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const { id } = use(params);
   const { me, email } = useMe();
   const [b, setB] = useState<ImportBatchDetail | null>(null);
@@ -30,8 +32,11 @@ export default function ImportPage({ params }: { params: Promise<{ id: string }>
     try { await fn(); await load(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href={`/login?next=/imports/${id}`}>log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace(`/login?next=/imports/${id}`);
+  }, [email, router, id]);
+
+  if (email === undefined || email === null) return null;
   if (me?.mfaRequired) return <MfaPrompt />;
   if (me && !can(me, "import.manage")) return <p className="notice notice-error">Your account does not have Admin permissions.</p>;
   if (!b) return error ? <p className="notice notice-error">{error}</p> : <p className="muted">Loading…</p>;

@@ -82,8 +82,11 @@ function Users() {
     setTimeout(() => setCopied(false), 3000);
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/login?next=/users">log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace("/login?next=/users");
+  }, [email, router]);
+
+  if (email === undefined || email === null) return null;
   if (me?.mfaRequired) return <MfaPrompt next="/users" />;
   if (me && !can(me, "user.read")) return <p className="notice notice-error">Your account does not have Admin permissions.</p>;
 

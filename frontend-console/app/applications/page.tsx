@@ -59,8 +59,11 @@ function Applications() {
     }
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/login?next=/applications">log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace("/login?next=/applications");
+  }, [email, router]);
+
+  if (email === undefined || email === null) return null;
 
   const drafts = data?.items.filter((i) => i.decision && !i.decision.releasedAt) ?? [];
   return (

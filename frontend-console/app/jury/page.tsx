@@ -71,8 +71,11 @@ function Jury() {
     } finally { setBusy(false); }
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/login?next=/jury">log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace("/login?next=/jury");
+  }, [email, router]);
+
+  if (email === undefined || email === null) return null;
   const set = (i: number, patch: Partial<Draft>) =>
     setEditing((e) => e && { ...e, parameters: e.parameters.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
 

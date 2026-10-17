@@ -32,9 +32,15 @@ export function createSession(cfg: SessionConfig) {
   const listeners = new Set<() => void>();
   const changed = (token: string | null) => { cachedToken = token; listeners.forEach((l) => l()); };
 
+  function getCookie(name: string): string | null {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+    return match ? decodeURIComponent(match[1]!) : null;
+  }
+
   async function getToken(): Promise<string | null> {
     if (typeof window === "undefined") return null;
-    const devTok = sessionStorage.getItem(cfg.storageKey);
+    const devTok = sessionStorage.getItem(cfg.storageKey) || getCookie(cfg.storageKey) || getCookie("sj_token");
     if (devTok) return devTok;
     if (cfg.authMode === "supabase" && cfg.supabaseUrl && cfg.supabaseAnonKey) {
       const { data } = await sb().auth.getSession();
@@ -46,7 +52,11 @@ export function createSession(cfg: SessionConfig) {
   const api = createApi({ baseUrl: cfg.apiUrl, getToken });
 
   function storeSessionToken(token: string) {
-    sessionStorage.setItem(cfg.storageKey, token);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(cfg.storageKey, token);
+      document.cookie = `${cfg.storageKey}=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `sj_token=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax`;
+    }
     changed(token);
   }
 
@@ -103,7 +113,11 @@ export function createSession(cfg: SessionConfig) {
   }
 
   async function signOut(): Promise<void> {
-    sessionStorage.removeItem(cfg.storageKey);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(cfg.storageKey);
+      document.cookie = `${cfg.storageKey}=; path=/; max-age=0`;
+      document.cookie = `sj_token=; path=/; max-age=0`;
+    }
     if (cfg.authMode === "supabase" && cfg.supabaseUrl && cfg.supabaseAnonKey) {
       try { await sb().auth.signOut(); } catch {}
     }
@@ -136,7 +150,13 @@ export function createSession(cfg: SessionConfig) {
         if (cachedToken === null) void getToken().then((t) => t !== cachedToken && changed(t));
         return () => listeners.delete(cb);
       },
-      () => identityFrom(cachedToken ?? (typeof window !== "undefined" ? sessionStorage.getItem(cfg.storageKey) : null)),
+      () =>
+        identityFrom(
+          cachedToken ??
+            (typeof window !== "undefined"
+              ? sessionStorage.getItem(cfg.storageKey) || getCookie(cfg.storageKey) || getCookie("sj_token")
+              : null)
+        ),
       () => undefined,
     );
   }

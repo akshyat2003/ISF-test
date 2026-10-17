@@ -43,8 +43,11 @@ export default function Imports() {
     URL.revokeObjectURL(url);
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/login?next=/imports">log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace("/login?next=/imports");
+  }, [email, router]);
+
+  if (email === undefined || email === null) return null;
   if (me?.mfaRequired) return <MfaPrompt next="/imports" />;
   if (me && !can(me, "import.manage")) return <p className="notice notice-error">Your account does not have Admin permissions.</p>;
   const cols = IMPORT_COLUMNS[category];

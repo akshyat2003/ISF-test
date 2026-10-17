@@ -90,8 +90,11 @@ function Content() {
     } finally { setBusy(false); }
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/login?next=/content">log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace("/login?next=/content");
+  }, [email, router]);
+
+  if (email === undefined || email === null) return null;
   const go = (q: Record<string, string>) => router.push(`/content?${new URLSearchParams({ edition: String(year), tab, ...q })}`);
   const canEdit = (t: Tab) => !!o && (t === "documents" || ["safety_guideline", "emergency_contact", "page"].includes(t) ? o.canEditSource : o.canEditOperational);
   const items = o?.items.filter((i) => i.type === tab) ?? [];

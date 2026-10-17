@@ -77,8 +77,11 @@ function Ranking() {
     } finally { setBusy(false); }
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/login?next=/ranking">log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace("/login?next=/ranking");
+  }, [email, router]);
+
+  if (email === undefined || email === null) return null;
   const set = (i: number, patch: Partial<Draft>) =>
     setEditing((e) => e && { ...e, criteria: e.criteria.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
   const weightSum = editing?.criteria.reduce((a, c) => a + (Number(c.weight) || 0), 0) ?? 0;

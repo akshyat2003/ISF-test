@@ -188,10 +188,11 @@ async function handler(request: Request) {
 
       const authSub = `dev|${email}`;
       let roles: string[] = [];
+      let userId: string | null = null;
 
       try {
         const userRows = await sql`select id, status from user_accounts where lower(email) = ${email}`;
-        let userId = userRows[0]?.id;
+        userId = userRows[0]?.id ?? null;
 
         if (!userId && ADMIN_EMAILS.has(email)) {
           const defaultName = email.split("@")[0] || "Admin";
@@ -235,7 +236,21 @@ async function handler(request: Request) {
         .setExpirationTime("24h")
         .sign(JWT_SECRET);
 
-      return Response.json({ token, roles });
+      const response = Response.json({
+        token,
+        roles,
+        user: {
+          id: userId || "user-id",
+          email,
+          fullName: email.split("@")[0],
+          roles,
+        },
+      });
+      response.headers.set(
+        "Set-Cookie",
+        `sj_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax`
+      );
+      return response;
     }
 
     // ---------------------------------------------------- POST /v1/auth/password/update
@@ -275,7 +290,9 @@ async function handler(request: Request) {
     // ---------------------------------------------------- GET /v1/me
     if (path.includes("/v1/me") && method === "GET") {
       const authHeader = request.headers.get("authorization") || "";
-      const rawToken = authHeader.replace(/^Bearer\s+/i, "");
+      const cookieHeader = request.headers.get("cookie") || "";
+      const cookieMatch = cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/);
+      const rawToken = authHeader.replace(/^Bearer\s+/i, "") || (cookieMatch ? decodeURIComponent(cookieMatch[1]!) : "");
 
       if (!rawToken) {
         return Response.json({ message: "Authorization required" }, { status: 401 });

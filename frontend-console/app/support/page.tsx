@@ -47,8 +47,11 @@ function Queue() {
     router.push(`/support${p.size ? `?${p}` : ""}`);
   };
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/login?next=/support">log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace("/login?next=/support");
+  }, [email, router]);
+
+  if (email === undefined || email === null) return null;
   if (me?.mfaRequired) return <MfaPrompt next="/support" />;
   if (me && !allowed) return <p className="notice notice-error">Your account does not have Customer Support or Management permissions.</p>;
 

@@ -159,7 +159,10 @@ export function authenticate(
   opts: { requireStaffMfa: boolean; identity: IdentityResolver; allowPending?: boolean },
 ) {
   return async (req: FastifyRequest) => {
-    const token = bearer(req.headers.authorization);
+    const cookieHeader = req.headers.cookie;
+    const cookieMatch = cookieHeader ? cookieHeader.match(/(?:^|;\s*)sj_token=([^;]+)/) : null;
+    const cookieToken = cookieMatch ? decodeURIComponent(cookieMatch[1]!) : null;
+    const token = bearer(req.headers.authorization) || cookieToken;
     if (!token) throw unauthorized();
     const claims = await verify(token);
     req.principal = await resolvePrincipal(db, claims, opts);

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
 import { formatIst } from "@sj/client";
 import { overrideOf, type FormQuestion, type ManageApplication } from "@sj/contracts";
@@ -10,6 +11,7 @@ import { api, useSessionEmail } from "@/lib/session";
 const OUTCOME = { selected: "selected", not_selected: "not selected" } as const;
 
 export default function ApplicationDetail({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const { id } = use(params);
   const email = useSessionEmail();
   const [a, setA] = useState<ManageApplication | null>(null);
@@ -47,8 +49,11 @@ export default function ApplicationDetail({ params }: { params: Promise<{ id: st
   }
   const decide = (outcome: "selected" | "not_selected") => run(() => api.manage.decide(id, { outcome, reason: reason.trim() || undefined }));
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href={`/login?next=/applications/${id}`}>log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace(`/login?next=/applications/${id}`);
+  }, [email, router, id]);
+
+  if (email === undefined || email === null) return null;
   if (error && !a) return <p className="notice notice-error">{error}</p>;
   if (!a) return <p className="muted">Loading…</p>;
   const released = !!a.decision?.releasedAt;

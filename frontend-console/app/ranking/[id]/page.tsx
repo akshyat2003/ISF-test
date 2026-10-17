@@ -3,6 +3,7 @@
 // model and prompt version it used, and review aids (score spread per criterion). Earlier runs stay viewable here.
 // The AI only recommends: decisions are drafted on the application pages.
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useState } from "react";
 import { ApiError, formatIst } from "@sj/client";
 import type { RankingRunDetail } from "@sj/contracts";
@@ -20,6 +21,7 @@ function spread(values: number[]) {
 }
 
 export default function RunPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const { id } = use(params);
   const email = useSessionEmail();
   const [run, setRun] = useState<RankingRunDetail | null>(null);
@@ -48,8 +50,11 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
     return () => clearInterval(t);
   }, [active, load]);
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href={`/login?next=/ranking/${id}`}>log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace(`/login?next=/ranking/${id}`);
+  }, [email, router, id]);
+
+  if (email === undefined || email === null) return null;
   if (error === "mfa_required") return <MfaPrompt next={`/ranking/${id}`} />;
   if (error && !run) return <p className="notice notice-error" role="alert">{error}</p>;
   if (!run) return <p className="muted">Loading…</p>;

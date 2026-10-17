@@ -34,8 +34,11 @@ function MfaStep() {
     try { await fn(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 
-  if (who === undefined) return null;
-  if (!who) return <p>Please <Link href="/login">log in</Link>.</p>;
+  useEffect(() => {
+    if (who === null) router.replace("/login");
+  }, [who, router]);
+
+  if (who === undefined || who === null) return null;
   if (factorId === undefined) return error ? <p className="notice notice-error">{error}</p> : <p className="muted">Checking your log-in…</p>;
 
   const needsEnrolment = authMode === "supabase" && !factorId && !enrolment;

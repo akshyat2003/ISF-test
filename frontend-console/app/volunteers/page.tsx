@@ -58,8 +58,11 @@ function Volunteers() {
     } finally { setBusy(false); }
   }
 
-  if (email === undefined) return null;
-  if (!email) return <p>Please <Link href="/login?next=/volunteers">log in</Link>.</p>;
+  useEffect(() => {
+    if (email === null) router.replace("/login?next=/volunteers");
+  }, [email, router]);
+
+  if (email === undefined || email === null) return null;
   const run = o?.draftRun;
 
   return (
