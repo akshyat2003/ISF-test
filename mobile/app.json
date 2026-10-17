@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "Startup Jathara",
+    "name": "Udbhav",
     "slug": "isf",
+    "icon": "./assets/udbhav-logo.png",
     "scheme": "startupjathara",
     "version": "0.1.0",
     "orientation": "portrait",

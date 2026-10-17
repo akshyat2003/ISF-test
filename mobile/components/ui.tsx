@@ -114,4 +114,4 @@ const s = StyleSheet.create({
   badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, alignSelf: "flex-start" },
 });
 
-export { OrganizerLogos } from "./partners";
+export { OrganizerLogos, UdbhavEmblem } from "./partners";

@@ -3,9 +3,9 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
-  ACCOUNT_STATUSES, ActivationRequest, CorrectionReviewRequest, CriteriaSetCreate, CutLineRequest, DecisionCorrectionRequest, DecisionRequest,
+  ACCOUNT_STATUSES, ActivationRequest, AdminCreateCredentialRequest, CorrectionReviewRequest, CriteriaSetCreate, CutLineRequest, DecisionCorrectionRequest, DecisionRequest,
   DevSessionRequest, normaliseMobile, IMPORT_CATEGORIES, ImportCommitRequest, ImportPreviewRequest, INTERNAL_STATUSES,
-  RegistrationRequest, ReleaseRequest, ROLES, RoleGrantRequest, SelectionLimitRequest, StartRankingRunRequest,
+  PublicSignUpRequest, RegistrationRequest, ReleaseRequest, ROLES, RoleGrantRequest, SelectionLimitRequest, StartRankingRunRequest,
   CloseAssignmentRequest, EvaluationSave, JuryAssignmentRequest, ManualAssignRequest, PitchSlotRequest, PitchSlotUpdate, ReassignRequest,
   ReopenRequest, RubricCreate,
   ArchiveRequest, ContentCreate, ContentUpdate, DocumentUpload, GroupMembersAdd, NoticeAudience, NoticeCreate, NoticeEdit, NoticeGroupCreate,
@@ -16,7 +16,7 @@ import {
 import { z } from "zod";
 import type { Config } from "./config.js";
 import type { Sql } from "./db/client.js";
-import { getUser, grantRole, issueActivation, listUsers, me, redeemActivation, revokeRole, setStatus } from "./modules/accounts/service.js";
+import { createCredential, getUser, grantRole, issueActivation, listUsers, me, publicSignUp, redeemActivation, revokeRole, setStatus } from "./modules/accounts/service.js";
 import { listEditions, toPublic } from "./modules/editions/service.js";
 import { commitBatch, discardBatch, getBatch, listBatches, previewImport, templateCsv } from "./modules/imports/service.js";
 import { markRead, myNotifications } from "./modules/notifications/service.js";
@@ -116,6 +116,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // ---------------------------------------------------------------- public
   app.get("/v1/public/editions", async () => (await listEditions(sql)).map((e) => toPublic(e, now())));
 
+  app.post("/v1/public/signup", {
+    config: { rateLimit: { max: config.registrationRateLimit, timeWindow: "1 minute" } },
+  }, async (req, reply) => {
+    const input = parse(PublicSignUpRequest, req.body);
+    const result = await publicSignUp(sql, input, now());
+    return reply.status(201).send(result);
+  });
+
   // ---------------------------------------------------------------- applicant (any signed-in user, own data)
   app.post("/v1/me/registrations", {
     preHandler: [auth, requirePermission("registration.submit")],
@@ -186,6 +194,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     setStatus(sql, principalOf(req), parse(Id, req.params).id, "reactivated"));
   app.post("/v1/admin/users/:id/activation", { preHandler: [auth, requirePermission("activation.issue")] }, async (req, reply) =>
     reply.status(201).send(await issueActivation(sql, principalOf(req), parse(Id, req.params).id, config.activationTtlHours, now(), automated)));
+  app.post("/v1/admin/credentials", { preHandler: [auth, requirePermission("role.assign")] }, async (req, reply) => {
+    const body = parse(AdminCreateCredentialRequest, req.body);
+    return reply.status(201).send(await createCredential(sql, principalOf(req), body, config.activationTtlHours, now()));
+  });
 
   // ---------------------------------------------------------------- admin: bulk import (FR-IMP-*)
   app.get("/v1/admin/imports", { preHandler: [auth, requirePermission("import.manage")] }, async () => listBatches(sql));

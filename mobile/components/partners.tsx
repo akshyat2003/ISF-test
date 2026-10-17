@@ -45,7 +45,52 @@ export function OrganizerLogos({
   );
 }
 
+const UDBHAV_LOGO = require("../assets/udbhav-logo.png");
+
+export function UdbhavEmblem({
+  size = 96,
+  showTitle = true,
+  subtitle = "Innovation & Excellence · ISF · GIET University",
+}: {
+  size?: number;
+  showTitle?: boolean;
+  subtitle?: string;
+}) {
+  return (
+    <View style={styles.emblemContainer}>
+      <Image
+        source={UDBHAV_LOGO}
+        style={{ width: size, height: size }}
+        resizeMode="contain"
+        accessibilityLabel="Udbhav Emblem"
+      />
+      {showTitle && <Text style={styles.emblemTitle}>Udbhav</Text>}
+      {subtitle ? <Text style={styles.emblemSubtitle}>{subtitle}</Text> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  emblemContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+  },
+  emblemTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: colors.ink,
+    letterSpacing: -0.5,
+  },
+  emblemSubtitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    textAlign: "center",
+  },
   container: {
     backgroundColor: colors.card,
     borderRadius: 12,

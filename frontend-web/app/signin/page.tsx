@@ -1,5 +1,7 @@
 "use client";
 import { Suspense, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { normaliseMobile, safeReturnPath, WEB_RETURN_PATHS, type SignInIdentifier, type SignInMethod } from "@sj/contracts";
 import { authMode, signInMethods, startSignIn, verifyCode } from "@/lib/session";
@@ -45,8 +47,14 @@ function SignInForm() {
 
   return (
     <form onSubmit={submit} style={{ maxWidth: 420 }}>
-      <h1>Sign in</h1>
-      <p className="muted">
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <Image src="/logos/udbhav.png" alt="Udbhav" width={48} height={48} style={{ borderRadius: 8, objectFit: "contain" }} />
+        <div>
+          <h1 style={{ margin: 0, fontSize: "1.6rem" }}>Sign in to Udbhav</h1>
+          <p className="small muted" style={{ margin: 0 }}>Startup Jathara @ Dandakaranya</p>
+        </div>
+      </div>
+      <p className="muted small">
         {!who
           ? "Sign in with a one-time code. Use the email or mobile number you registered with, or the one the event team holds for you."
           : `Enter the code we sent to ${"email" in who ? who.email : who.phone}.`}
@@ -75,7 +83,16 @@ function SignInForm() {
         <label>One-time code<input type="text" inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value)} /></label>
       )}
       {error && <p className="field-error" role="alert">{error}</p>}
-      <div><button className="btn btn-primary" disabled={busy}>{!who ? "Continue" : "Verify and sign in"}</button></div>
+      <div><button className="btn btn-primary" disabled={busy} style={{ width: "100%" }}>{!who ? "Continue" : "Verify and sign in"}</button></div>
+
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--line)", textAlign: "center" }}>
+        <p className="small muted" style={{ margin: "0 0 8px" }}>
+          Don't have an account yet?
+        </p>
+        <Link href="/signup" className="btn btn-sm" style={{ width: "100%", justifyContent: "center" }}>
+          Sign up as Leader, Member, Volunteer, or Management
+        </Link>
+      </div>
     </form>
   );
 }

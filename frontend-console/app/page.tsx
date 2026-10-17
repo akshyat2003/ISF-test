@@ -10,11 +10,36 @@ export default function Home() {
   const router = useRouter();
   useEffect(() => {
     if (!me) return;
-    if (me.mfaRequired) router.replace("/mfa");
-    else if (can(me, "application.read_all")) router.replace("/applications");
-    else if (can(me, "user.read")) router.replace("/users");
-    else if (can(me, "import.manage")) router.replace("/imports");
-    else if (can(me, "support.handle")) router.replace("/support");
+    if (me.mfaRequired) {
+      router.replace("/mfa");
+      return;
+    }
+    // Customer support logs in directly to Support dashboard
+    if (me.roles.includes("customer_support") && !me.roles.includes("admin") && !me.roles.includes("management")) {
+      router.replace("/support");
+      return;
+    }
+    // Admin logs in directly to Users & Credentials management dashboard
+    if (me.roles.includes("admin")) {
+      router.replace("/users");
+      return;
+    }
+    if (can(me, "support.handle")) {
+      router.replace("/support");
+      return;
+    }
+    if (can(me, "application.read_all")) {
+      router.replace("/applications");
+      return;
+    }
+    if (can(me, "user.read")) {
+      router.replace("/users");
+      return;
+    }
+    if (can(me, "import.manage")) {
+      router.replace("/imports");
+      return;
+    }
   }, [me, router]);
   if (email === undefined) return null;
   if (!email) return <p>Please <Link href="/signin">sign in</Link>.</p>;

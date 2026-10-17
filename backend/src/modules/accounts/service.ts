@@ -1,6 +1,6 @@
 // Accounts (Phase 3): "who am I", secure activation and account administration (FR-IAM-05, -06, -08…10).
 import { createHash, randomBytes } from "node:crypto";
-import type { AccountStatus, ActivationIssued, AdminUser, AdminUserList, MeResponse, Role } from "@sj/contracts";
+import { normaliseMobile, type AccountStatus, type ActivationIssued, type AdminUser, type AdminUserList, type MeResponse, type Role, type SignupRole } from "@sj/contracts";
 import type { Db, Sql } from "../../db/client.js";
 import { audit } from "../../platform/audit.js";
 import { channelFor, enqueue, TEMPLATES } from "../notifications/outbox.js";
@@ -212,4 +212,168 @@ export async function setStatus(sql: Sql, p: Principal, userId: string, target: 
       entityType: "user_account", entityId: userId, data: { from: u.status, to: next } });
   });
   return getUser(sql, userId);
+}
+
+/** Admin directly creates credentials for jury members, delegates, or other roles. */
+export async function createCredential(
+  sql: Sql,
+  p: Principal,
+  data: {
+    fullName: string;
+    email?: string | null;
+    mobile?: string | null;
+    role: Role;
+    edition?: number | null;
+  },
+  ttlHours: number,
+  now: Date,
+): Promise<{ user: AdminUser; activationToken: string | null; message: string }> {
+  const normEmail = data.email ? data.email.trim().toLowerCase() : null;
+  const normMobile = data.mobile ? normaliseMobile(data.mobile) : null;
+  if (!normEmail && !normMobile) {
+    throw new AppError(400, "missing_identifier", "Email or mobile required", "Provide at least an email or mobile number.");
+  }
+  const edition = data.edition ?? 2026;
+
+  const result = await sql.begin(async (tx) => {
+    let user = normEmail
+      ? (await tx<{ id: string; status: string }[]>`select id, status from user_accounts where lower(email) = ${normEmail}`)[0]
+      : undefined;
+    if (!user && normMobile) {
+      user = (await tx<{ id: string; status: string }[]>`select id, status from user_accounts where mobile_e164 = ${normMobile}`)[0];
+    }
+
+    let userId: string;
+    if (!user) {
+      const [created] = await tx<{ id: string }[]>`
+        insert into user_accounts (full_name, email, mobile_e164, status)
+        values (${data.fullName.trim()}, ${normEmail}, ${normMobile}, 'active')
+        returning id`;
+      userId = created!.id;
+      await audit(tx, {
+        actorUserId: p.account!.id, action: "account.created", entityType: "user_account", entityId: userId,
+        data: { fullName: data.fullName, email: normEmail, mobile: normMobile, role: data.role, edition },
+      });
+    } else {
+      userId = user.id;
+    }
+
+    // Grant role if not already active
+    await tx`
+      insert into role_grants (user_id, role, edition_id, granted_by)
+      select ${userId}, ${data.role}, ${edition}, ${p.account!.id}
+      where not exists (
+        select 1 from role_grants
+        where user_id = ${userId} and role = ${data.role}
+        and coalesce(edition_id, 0) = coalesce(${edition}::smallint, 0)
+        and revoked_at is null
+      )`;
+
+    // Grant edition access
+    await tx`
+      insert into edition_access (user_id, edition_id, source, granted_by)
+      values (${userId}, ${edition}, 'predefined', ${p.account!.id})
+      on conflict (user_id, edition_id) do nothing`;
+
+    // Issue activation token / credential
+    const token = randomBytes(24).toString("base64url");
+    const expiresAt = new Date(now.getTime() + ttlHours * 3600_000);
+    await tx`update activation_tokens set revoked_at = ${now} where user_id = ${userId} and used_at is null and revoked_at is null`;
+    await tx`
+      insert into activation_tokens (user_id, token_sha256, issued_by, issued_at, expires_at)
+      values (${userId}, ${sha256(token)}, ${p.account!.id}, ${now}, ${expiresAt})`;
+
+    await audit(tx, {
+      actorUserId: p.account!.id, action: "credentials.created", entityType: "user_account", entityId: userId,
+      editionId: edition, data: { role: data.role, edition },
+    });
+
+    return { userId, token };
+  });
+
+  const user = await getUser(sql, result.userId);
+  return {
+    user,
+    activationToken: result.token,
+    message: `Credentials created successfully for ${data.fullName} as ${data.role.replace(/_/g, " ")}.`,
+  };
+}
+
+/** Public sign-up on website for startup leader, startup member, volunteer, and management team. */
+export async function publicSignUp(
+  sql: Sql,
+  data: {
+    fullName: string;
+    email: string;
+    mobile?: string | null;
+    role: SignupRole;
+    edition: number;
+    startupName?: string | null;
+  },
+  now: Date,
+): Promise<{ success: boolean; userId: string; email: string; role: string; edition: number }> {
+  const normEmail = data.email.trim().toLowerCase();
+  const normMobile = data.mobile ? normaliseMobile(data.mobile) : null;
+  const edition = data.edition || 2026;
+
+  return sql.begin(async (tx) => {
+    let [existing] = await tx<{ id: string; status: string }[]>`
+      select id, status from user_accounts where lower(email) = ${normEmail}`;
+
+    let userId: string;
+    if (!existing) {
+      const [u] = await tx<{ id: string }[]>`
+        insert into user_accounts (full_name, email, mobile_e164, status)
+        values (${data.fullName.trim()}, ${normEmail}, ${normMobile}, 'active')
+        returning id`;
+      userId = u!.id;
+      await audit(tx, {
+        actorUserId: null, action: "account.signed_up", entityType: "user_account", entityId: userId,
+        data: { role: data.role, edition, startupName: data.startupName },
+      });
+    } else {
+      userId = existing.id;
+    }
+
+    // Role grant
+    await tx`
+      insert into role_grants (user_id, role, edition_id)
+      select ${userId}, ${data.role}, ${edition}
+      where not exists (
+        select 1 from role_grants
+        where user_id = ${userId} and role = ${data.role}
+        and coalesce(edition_id, 0) = coalesce(${edition}::smallint, 0)
+        and revoked_at is null
+      )`;
+
+    // Edition access
+    await tx`
+      insert into edition_access (user_id, edition_id, source)
+      values (${userId}, ${edition}, 'predefined')
+      on conflict (user_id, edition_id) do nothing`;
+
+    // If startup role and startupName provided, link to startup
+    if ((data.role === "startup_team_leader" || data.role === "startup_team_member") && data.startupName?.trim()) {
+      const sName = data.startupName.trim();
+      let [s] = await tx<{ id: string }[]>`select id from startups where lower(name) = lower(${sName})`;
+      if (!s) {
+        [s] = await tx<{ id: string }[]>`
+          insert into startups (name, origin, created_by)
+          values (${sName}, 'applicant', ${userId})
+          returning id`;
+      }
+      await tx`
+        insert into startup_memberships (startup_id, user_id, position)
+        values (${s!.id}, ${userId}, ${data.role === "startup_team_leader" ? "leader" : "member"})
+        on conflict (startup_id, user_id) do nothing`;
+    }
+
+    return {
+      success: true,
+      userId,
+      email: normEmail,
+      role: data.role,
+      edition,
+    };
+  });
 }

@@ -26,9 +26,9 @@ export default function RootLayout() {
           headerRight: () => <EmergencyButton />,
         }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="signin" options={{ title: "Sign in", headerBackVisible: false }} />
+          <Stack.Screen name="signin" options={{ title: "Udbhav · Sign in", headerBackVisible: false }} />
           <Stack.Screen name="activate" options={{ title: "Activate account" }} />
-          <Stack.Screen name="home" options={{ title: "Startup Jathara", headerBackVisible: false }} />
+          <Stack.Screen name="home" options={{ title: "Udbhav", headerBackVisible: false }} />
           <Stack.Screen name="register" options={{ title: "Register a startup" }} />
           <Stack.Screen name="status" options={{ title: "Application status" }} />
           <Stack.Screen name="notifications" options={{ title: "Messages" }} />

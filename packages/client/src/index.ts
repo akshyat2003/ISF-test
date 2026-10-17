@@ -2,6 +2,8 @@
 import type {
   AccountStatus,
   ActivationIssued,
+  AdminCreateCredentialRequest,
+  AdminCreateCredentialResponse,
   CriteriaSet,
   CriteriaSetCreate,
   DecisionCorrection,
@@ -11,6 +13,8 @@ import type {
   AdminUser,
   AdminUserList,
   DecisionRequest,
+  PublicSignUpRequest,
+  PublicSignUpResponse,
   ImportBatch,
   ImportBatchDetail,
   ImportCategory,
@@ -139,6 +143,7 @@ export function createApi({ baseUrl, getToken }: ApiOptions) {
     devSession: (id: string | SignInIdentifier, mfa = false) =>
       req<{ token: string }>("POST", "/v1/dev/session", { ...(typeof id === "string" ? { email: id } : id), mfa }),
     register: (body: RegistrationRequest) => req<RegistrationResponse>("POST", "/v1/me/registrations", body),
+    signup: (body: PublicSignUpRequest) => req<PublicSignUpResponse>("POST", "/v1/public/signup", body),
     myApplications: () => req<MyApplicationsResponse>("GET", "/v1/me/applications"),
     /** TBD-37: withdraw one year's application (until that year's event starts). */
     withdrawApplication: (id: string) => req<MyApplicationsResponse>("POST", `/v1/me/applications/${id}/withdraw`),
@@ -146,6 +151,7 @@ export function createApi({ baseUrl, getToken }: ApiOptions) {
     me: () => req<MeResponse>("GET", "/v1/me"),
     activate: (token: string) => req<MeResponse>("POST", "/v1/me/activation", { token }),
     admin: {
+      createCredential: (body: AdminCreateCredentialRequest) => req<AdminCreateCredentialResponse>("POST", "/v1/admin/credentials", body),
       users: (f: { q?: string; role?: Role; status?: AccountStatus; limit?: number; offset?: number } = {}) => {
         const p = new URLSearchParams(Object.entries(f).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]));
         return req<AdminUserList>("GET", `/v1/admin/users${p.size ? `?${p}` : ""}`);

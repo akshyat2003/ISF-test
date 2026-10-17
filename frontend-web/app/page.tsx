@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { PublicEdition } from "@sj/contracts";
 import { formatDateRange, formatIst } from "@sj/client";
 import { OrganizerLogos } from "./organizer-logos";
@@ -31,15 +32,21 @@ export default async function Home() {
   return (
     <>
       <section className="hero">
-        <p className="eyebrow">GIET University · Gunupur, Odisha</p>
-        <h1>Startup Jathara @ Dandakaranya</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 16, flexWrap: "wrap" }}>
+          <Image src="/logos/udbhav.png" alt="Udbhav" width={84} height={84} style={{ borderRadius: 14, objectFit: "contain" }} />
+          <div>
+            <p className="eyebrow" style={{ margin: 0 }}>GIET University · Gunupur, Odisha</p>
+            <h1 style={{ margin: "4px 0 0" }}>Udbhav · Startup Jathara</h1>
+          </div>
+        </div>
         <p className="lede">
           {e26?.eventStartsOn && e26.eventEndsOn ? formatDateRange(e26.eventStartsOn, e26.eventEndsOn) : "18–20 December 2026"}
           {" "}· pre-event day 17 December 2026. Startup pitches, roundtables, awards, networking, forest trekking
           and ecosystem discussions, organised by GIET University in association with the International Startup Foundation and Incubatex Innovation.
         </p>
         <div className="actions">
-          <Link href="/register" className="btn btn-primary">Register your startup</Link>
+          <Link href="/signup" className="btn btn-primary">Sign up (Leader / Member / Volunteer / Management)</Link>
+          <Link href="/register" className="btn">Register your startup</Link>
           <Link href="/status" className="btn">Check application status</Link>
           <Link href="/event" className="btn">Programme and event information</Link>
         </div>

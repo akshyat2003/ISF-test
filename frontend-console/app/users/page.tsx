@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ACCOUNT_STATUSES, ROLES, type AccountStatus, type AdminUserList, type Role } from "@sj/contracts";
+import { ACCOUNT_STATUSES, ROLES, type AccountStatus, type AdminCreateCredentialResponse, type AdminUserList, type Role } from "@sj/contracts";
 import { formatIst } from "@sj/client";
 import { api } from "@/lib/session";
 import { can, useMe } from "@/lib/me";
@@ -23,6 +23,18 @@ function Users() {
   const [data, setData] = useState<AdminUserList | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Create credentials for Jury member, Delegate, or other roles
+  const [showCreate, setShowCreate] = useState(false);
+  const [newFullName, setNewFullName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newMobile, setNewMobile] = useState("");
+  const [newRole, setNewRole] = useState<Role>("jury_member");
+  const [newEdition, setNewEdition] = useState("2026");
+  const [createResult, setCreateResult] = useState<AdminCreateCredentialResponse | null>(null);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
   const load = useCallback(async () => {
     setError(null);
     try { setData(await api.admin.users({ q: q || undefined, role: role || undefined, status: status || undefined, limit: PAGE, offset })); }
@@ -36,6 +48,40 @@ function Users() {
     router.push(`/users${p.size ? `?${p}` : ""}`);
   };
 
+  async function handleCreateCredential(e: React.FormEvent) {
+    e.preventDefault();
+    setCreateError(null);
+    setCreateResult(null);
+    setCreateBusy(true);
+    setCopied(false);
+    try {
+      const res = await api.admin.createCredential({
+        fullName: newFullName.trim(),
+        email: newEmail.trim() || undefined,
+        mobile: newMobile.trim() || undefined,
+        role: newRole,
+        edition: Number(newEdition) || 2026,
+      });
+      setCreateResult(res);
+      setNewFullName("");
+      setNewEmail("");
+      setNewMobile("");
+      void load();
+    } catch (err) {
+      setCreateError((err as Error).message || "Failed to create credentials");
+    } finally {
+      setCreateBusy(false);
+    }
+  }
+
+  function copyCredentials() {
+    if (!createResult) return;
+    const text = `Udbhav - Startup Jathara Credentials\nName: ${createResult.user.fullName}\nRole: ${createResult.user.roles.map((r) => r.role).join(", ")}\nEmail: ${createResult.user.email ?? "N/A"}\nMobile: ${createResult.user.mobile ?? "N/A"}\nActivation Code: ${createResult.activationToken ?? "Direct Access via Email Sign-in"}\nSign-in URL: ${typeof window !== "undefined" ? window.location.origin.replace("4001", "3000") : "https://startupjathara.org"}/signin`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  }
+
   if (email === undefined) return null;
   if (!email) return <p>Please <Link href="/signin?next=/users">sign in</Link>.</p>;
   if (me?.mfaRequired) return <MfaPrompt next="/users" />;
@@ -43,7 +89,89 @@ function Users() {
 
   return (
     <>
-      <h1>Accounts</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <h1>Accounts & Credentials</h1>
+        {can(me, "role.assign") && (
+          <button className="btn btn-primary" onClick={() => { setShowCreate(!showCreate); setCreateResult(null); }}>
+            {showCreate ? "Close Form" : "+ Create Credentials (Jury / Delegate / Staff)"}
+          </button>
+        )}
+      </div>
+
+      {showCreate && (
+        <section className="card" style={{ margin: "16px 0 24px", borderColor: "var(--accent)" }}>
+          <h2 style={{ marginTop: 0 }}>Create Participant / Staff Credentials</h2>
+          <p className="muted small">
+            Admin can directly issue credentials for <strong>Jury Members</strong>, <strong>Delegates</strong>, and other event participants.
+          </p>
+          <form onSubmit={handleCreateCredential} style={{ display: "grid", gap: 14 }}>
+            <div className="two">
+              <label>Full Name *
+                <input type="text" required placeholder="e.g. Dr. Priya Sharma" value={newFullName} onChange={(e) => setNewFullName(e.target.value)} />
+              </label>
+              <label>Role to Grant *
+                <select value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}>
+                  <option value="jury_member">Jury Member (Evaluations & Pitch Scoring)</option>
+                  <option value="delegate">Delegate (VIP / Attendee)</option>
+                  <option value="customer_support">Customer Support (Help Desk)</option>
+                  <option value="volunteer">Volunteer (Participant Support)</option>
+                  <option value="management">Management Team (Evaluations & Approvals)</option>
+                  <option value="admin">Administrator (Full Console Access)</option>
+                  <option value="startup_team_leader">Startup Team Leader</option>
+                  <option value="startup_team_member">Startup Team Member</option>
+                </select>
+              </label>
+            </div>
+            <div className="two">
+              <label>Email Address
+                <input type="email" placeholder="jury.member@example.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+              </label>
+              <label>Mobile Number
+                <input type="tel" placeholder="+91 98765 43210" value={newMobile} onChange={(e) => setNewMobile(e.target.value)} />
+              </label>
+            </div>
+            <div className="two">
+              <label>Event Edition
+                <select value={newEdition} onChange={(e) => setNewEdition(e.target.value)}>
+                  <option value="2026">Startup Jathara 2026</option>
+                  <option value="2027">Startup Jathara 2027</option>
+                </select>
+              </label>
+              <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <button type="submit" className="btn btn-primary" disabled={createBusy} style={{ width: "100%", height: 42 }}>
+                  {createBusy ? "Creating Credentials..." : "Generate & Issue Credentials"}
+                </button>
+              </div>
+            </div>
+            {createError && <p className="notice notice-error" role="alert">{createError}</p>}
+          </form>
+
+          {createResult && (
+            <div className="notice notice-ok" style={{ marginTop: 16 }}>
+              <h3 style={{ margin: "0 0 6px" }}>{createResult.message}</h3>
+              <p style={{ margin: "0 0 6px" }}>
+                <strong>Account:</strong> {createResult.user.fullName} ({createResult.user.email ?? createResult.user.mobile})
+              </p>
+              <p style={{ margin: "0 0 6px" }}>
+                <strong>Role:</strong> {createResult.user.roles.map((r) => r.role).join(", ")}
+              </p>
+              {createResult.activationToken ? (
+                <p style={{ margin: "0 0 10px" }}>
+                  <strong>Activation Token / Credential:</strong> <code>{createResult.activationToken}</code>
+                </p>
+              ) : (
+                <p style={{ margin: "0 0 10px" }} className="muted small">
+                  An activation code has been automated to their email/mobile. They can sign in directly using their email or mobile.
+                </p>
+              )}
+              <button type="button" className="btn btn-sm" onClick={copyCredentials}>
+                {copied ? "✓ Credentials Copied!" : "Copy Credentials Text"}
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
       <form className="toolbar" onSubmit={(e) => { e.preventDefault(); go({ q: text.trim(), offset: "0" }); }}>
         <label>Search
           <input type="text" placeholder="Name, email or mobile" value={text} onChange={(e) => setText(e.target.value)} />

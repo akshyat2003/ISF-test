@@ -3,7 +3,7 @@ import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { formatDateRange } from "@sj/client";
 import type { MyApplicationsResponse, PublicEdition } from "@sj/contracts";
-import { Badge, Button, Card, H1, H2, Loading, Notice, OrganizerLogos, P, Screen, colors } from "../components/ui";
+import { Badge, Button, Card, H1, H2, Loading, Notice, OrganizerLogos, P, Screen, UdbhavEmblem, colors } from "../components/ui";
 import { ROLE_LABEL, STAFF_ROLES, STATUS_LABEL, STATUS_TONE } from "../lib/labels";
 import { messageOf, useSession } from "../lib/session";
 
@@ -43,13 +43,19 @@ export default function Home() {
   return (
     <Screen>
       <Button title="Emergency: call 112 or alert the event team" onPress={() => router.push(me.editionAccess[0] ? { pathname: "/emergency", params: { year: String(me.editionAccess[0]) } } : "/emergency")} />
-      <H1>{name ? `Hello, ${name}` : "Welcome"}</H1>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <UdbhavEmblem size={54} showTitle={false} subtitle="" />
+        <View style={{ flex: 1 }}>
+          <H1>{name ? `Hello, ${name}` : "Welcome to Udbhav"}</H1>
+          <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>Startup Jathara @ Dandakaranya</Text>
+        </View>
+      </View>
       {roles.length > 0 && (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
           {roles.map((r) => <Badge key={r} text={ROLE_LABEL[r]} tone="ok" />)}
         </View>
       )}
-      <OrganizerLogos compact title="Event Organizers & Partners" />
+      <OrganizerLogos compact title="In Association With" />
 
       {me.editionAccess.map((year) => {
         const e = editions.find((x) => x.year === year);

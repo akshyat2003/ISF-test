@@ -553,6 +553,49 @@ export const ActivationIssued = z.object({
 });
 export type ActivationIssued = z.infer<typeof ActivationIssued>;
 
+export const AdminCreateCredentialRequest = z.object({
+  fullName: z.string().trim().min(1).max(200),
+  email: z.string().trim().email().toLowerCase().optional(),
+  mobile: z.string().trim().optional(),
+  role: z.enum(ROLES),
+  edition: z.number().int().min(2026).max(2100).nullable().optional(),
+});
+export type AdminCreateCredentialRequest = z.infer<typeof AdminCreateCredentialRequest>;
+
+export const AdminCreateCredentialResponse = z.object({
+  user: AdminUser,
+  activationToken: z.string().nullable(),
+  message: z.string(),
+});
+export type AdminCreateCredentialResponse = z.infer<typeof AdminCreateCredentialResponse>;
+
+export const SIGNUP_ROLES = [
+  "startup_team_leader",
+  "startup_team_member",
+  "volunteer",
+  "management",
+] as const;
+export type SignupRole = (typeof SIGNUP_ROLES)[number];
+
+export const PublicSignUpRequest = z.object({
+  fullName: z.string().trim().min(1).max(200),
+  email: z.string().trim().email().toLowerCase(),
+  mobile: z.string().trim().optional(),
+  role: z.enum(SIGNUP_ROLES),
+  edition: z.number().int().min(2026).max(2100).default(2026),
+  startupName: z.string().trim().max(200).optional(),
+});
+export type PublicSignUpRequest = z.infer<typeof PublicSignUpRequest>;
+
+export const PublicSignUpResponse = z.object({
+  success: z.boolean(),
+  userId: z.string(),
+  email: z.string(),
+  role: z.string(),
+  edition: z.number(),
+});
+export type PublicSignUpResponse = z.infer<typeof PublicSignUpResponse>;
+
 // ---------------------------------------------------------------- sign-in identifier (TBD-12: both; SMS once DLT is approved)
 export const SIGN_IN_METHODS = ["email", "phone"] as const;
 export type SignInMethod = (typeof SIGN_IN_METHODS)[number];
@@ -581,7 +624,7 @@ export type DevSessionRequest = z.input<typeof DevSessionRequest>;
 
 // ---------------------------------------------------------------- post-sign-in redirects (open-redirect protection)
 /** Internal destinations each web interface may return to after sign-in or MFA. Anything else falls back. */
-export const WEB_RETURN_PATHS = ["/", "/register", "/status", "/activate", "/privacy"] as const;
+export const WEB_RETURN_PATHS = ["/", "/signup", "/register", "/status", "/activate", "/privacy", "/event"] as const;
 export const CONSOLE_RETURN_PATHS = ["/", "/applications", "/ranking", "/jury", "/volunteers", "/content", "/notices", "/support", "/users", "/imports"] as const;
 
 const REDIRECT_BASE = "https://internal.invalid";
