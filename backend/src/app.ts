@@ -97,7 +97,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerErrorHandler(app);
   await app.register(helmet);
   await app.register(cors, {
-    origin: config.corsOrigins,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      const isAllowed =
+        config.corsOrigins.includes("*") ||
+        config.corsOrigins.includes(origin) ||
+        origin.startsWith("http://localhost:") ||
+        origin.startsWith("http://127.0.0.1:") ||
+        origin.startsWith("http://192.168.") ||
+        origin.startsWith("http://10.");
+      if (isAllowed) return cb(null, true);
+      return cb(null, false);
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["authorization", "content-type"],
     credentials: false,

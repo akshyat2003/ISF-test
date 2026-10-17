@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.28.0",
   "engines": { "node": ">=22" },
   "scripts": {
+    "dev": "pnpm --parallel --filter @sj/api --filter @sj/web --filter @sj/console dev",
     "db:start": "bash scripts/dev-db.sh start",
     "db:stop": "bash scripts/dev-db.sh stop",
     "db:migrate": "pnpm --filter @sj/api db:migrate",

@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CONSOLE_RETURN_PATHS, safeReturnPath } from "@sj/contracts";
 import { startSignIn, verifyCode } from "@/lib/session";
@@ -24,22 +25,19 @@ function LoginForm() {
     setLoading(true);
     try {
       if (stage === "email") {
-        // If password is provided, attempt direct verification first
         if (password.trim()) {
-          try {
-            await verifyCode(email.trim(), "000000", password.trim());
-            router.push(next);
-            return;
-          } catch {
-            // If direct password check fails, request OTP
-          }
+          // Direct password verification
+          await verifyCode(email.trim(), "000000", password.trim());
+          router.push(next);
+          return;
         }
+        // If password is not provided, request OTP
         const res = await startSignIn(email.trim());
         if (res === "signed_in") {
           router.push(next);
         } else {
           setStage("code");
-          setOtpSentMsg(`A 6-digit OTP code has been dispatched via Nodemailer to ${email.trim()}.`);
+          setOtpSentMsg(`A 6-digit OTP code has been dispatched to ${email.trim()}.`);
         }
       } else {
         await verifyCode(email.trim(), code.trim(), password.trim() || undefined);
@@ -336,14 +334,6 @@ function LoginForm() {
                 <div className="input-group">
                   <label className="input-label" htmlFor="work-email">
                     <span>Work Email</span>
-                    <button
-                      type="button"
-                      className="sublink"
-                      onClick={requestOtpCode}
-                      style={{ background: "none", border: "none", padding: 0 }}
-                    >
-                      Send OTP to Email
-                    </button>
                   </label>
                   <input
                     id="work-email"
@@ -360,14 +350,9 @@ function LoginForm() {
                 <div className="input-group">
                   <label className="input-label" htmlFor="work-password">
                     <span>Password</span>
-                    <button
-                      type="button"
-                      className="sublink"
-                      onClick={requestOtpCode}
-                      style={{ background: "none", border: "none", padding: 0 }}
-                    >
+                    <Link href="/reset-password" className="sublink">
                       Forgot password?
-                    </button>
+                    </Link>
                   </label>
                   <input
                     id="work-password"
