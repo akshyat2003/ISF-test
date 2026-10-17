@@ -7,11 +7,7 @@ import { storeSessionToken } from "@/lib/session";
 type CategoryId =
   | "startup_founder"
   | "student_innovator"
-  | "volunteer"
-  | "investor"
-  | "corporate"
-  | "mentor"
-  | "observer";
+  | "volunteer";
 
 interface CategoryMeta {
   id: CategoryId;
@@ -25,59 +21,27 @@ interface CategoryMeta {
 const CATEGORIES: CategoryMeta[] = [
   {
     id: "startup_founder",
-    title: "Startup Founder & Innovators",
-    badge: "Founders",
+    title: "Startup Leader",
+    badge: "Startup Leaders",
     icon: "🚀",
-    desc: "Founders, co-founders & innovators building early-stage or growth ventures",
+    desc: "Founders, co-founders & leaders building early-stage or growth ventures",
     teamLabel: "Startup / Company Name",
   },
   {
     id: "student_innovator",
-    title: "Student Innovators",
-    badge: "Students",
+    title: "Student Innovator",
+    badge: "Student Innovators",
     icon: "🎓",
     desc: "Undergraduates, researchers & college teams with working prototypes",
     teamLabel: "Project / Team / College Name",
   },
   {
     id: "volunteer",
-    title: "Volunteers (Individual)",
+    title: "Volunteers",
     badge: "Volunteers",
     icon: "🤝",
     desc: "Individual student & campus volunteers for summit coordination & venue operations",
     teamLabel: "Institution / Organization",
-  },
-  {
-    id: "investor",
-    title: "Investors, VCs & Angel Networks",
-    badge: "Investors",
-    icon: "💼",
-    desc: "Venture capitalists, angel investors, family offices & seed funds seeking dealflow",
-    teamLabel: "Fund / Firm / Network Name",
-  },
-  {
-    id: "corporate",
-    title: "Corporate, GCC & Industry Delegates",
-    badge: "Corporate",
-    icon: "🏢",
-    desc: "Enterprise leaders, GCC innovation heads & industrial technology delegates",
-    teamLabel: "Company / Corporate Entity",
-  },
-  {
-    id: "mentor",
-    title: "Mentors, Academicians & Sector Experts",
-    badge: "Mentors",
-    icon: "🧭",
-    desc: "Domain experts, academic scholars, incubation directors & technical advisors",
-    teamLabel: "Affiliated Institution / Organization",
-  },
-  {
-    id: "observer",
-    title: "Ecosystem Observers & Cultural Guests",
-    badge: "Observers",
-    icon: "🌐",
-    desc: "Government dignitaries, policy fellows, ecosystem observers & special invitees",
-    teamLabel: "Delegation / Organization",
   },
 ];
 
@@ -565,7 +529,7 @@ export default function RegisterPage() {
           </div>
           <h1 className="reg-title">Summit Delegate & Participant Registration</h1>
           <p className="reg-subtitle">
-            Register your startup, delegation, or participant credentials for the Dandakaranya Innovation Summit (18–20 December 2026 at GIET University).
+            Register your startup leader, student innovator, or volunteer credentials for the Dandakaranya Innovation Summit (18–20 December 2026 at GIET University).
           </p>
         </div>
 

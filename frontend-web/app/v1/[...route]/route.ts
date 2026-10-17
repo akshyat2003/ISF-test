@@ -365,7 +365,7 @@ async function handler(request: Request) {
 
       // Map category to system role
       let role = "delegate";
-      if (category === "startup_founder" || category === "startup_team_leader") role = "startup_team_leader";
+      if (category === "startup_founder" || category === "startup_team_leader" || category === "startup_leader") role = "startup_team_leader";
       else if (category === "student_innovator" || category === "startup_team_member") role = "startup_team_member";
       else if (category === "volunteer") role = "volunteer";
       else if (category === "mentor" || category === "jury_member") role = "jury_member";

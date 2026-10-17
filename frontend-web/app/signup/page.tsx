@@ -6,10 +6,9 @@ import { normaliseMobile, type SignupRole } from "@sj/contracts";
 import { api, startSignIn, verifyCode } from "@/lib/session";
 
 const ROLES: { id: SignupRole; title: string; desc: string }[] = [
-  { id: "startup_team_leader", title: "Startup Team Leader", desc: "Founders & leaders applying or leading their startup" },
-  { id: "startup_team_member", title: "Startup Team Member", desc: "Co-founders & team members participating with a startup" },
+  { id: "startup_team_leader", title: "Startup Leader", desc: "Founders & leaders applying or leading their startup" },
+  { id: "startup_team_member", title: "Student Innovator", desc: "Student innovators & team members with working prototypes" },
   { id: "volunteer", title: "Volunteer", desc: "Volunteers helping coordinate the event" },
-  { id: "management", title: "Management Team", desc: "Core organizing committee & operations" },
 ];
 
 export default function SignUpPage() {

@@ -403,7 +403,7 @@ function SignInForm() {
 
             <div className="action-links">
               <span>
-                No account? <Link href="/signup" className="action-link">Create one!</Link>
+                No account? <Link href="/register" className="action-link">Register here!</Link>
               </span>
             </div>
 

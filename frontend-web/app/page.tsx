@@ -36,12 +36,12 @@ export default async function Home() {
       </div>
 
       <p className="lede">
-        The premier Dandakaranya Innovation Summit bringing together startup founders, innovators, investors, corporate leaders, mentors, and student changemakers for pitch stages, roundtables, and ecosystem growth.
+        The premier Dandakaranya Innovation Summit bringing together startup leaders, student innovators, and volunteers for pitch stages, roundtables, and ecosystem growth.
       </p>
 
       <div className="actions">
         <Link href="/register" className="btn btn-primary btn-large">
-          Summit Registration (All Tracks) →
+          Summit Registration →
         </Link>
         <Link href="/signin" className="btn btn-large">
           Sign In to Dashboard
@@ -51,13 +51,9 @@ export default async function Home() {
       <div className="tracks-ribbon">
         <p className="tracks-ribbon-title">Open Registration Tracks</p>
         <div className="tracks-badges">
-          <span className="track-chip">🚀 Startup Founders</span>
+          <span className="track-chip">🚀 Startup Leaders</span>
           <span className="track-chip">💡 Student Innovators</span>
-          <span className="track-chip">💼 Investors & VCs</span>
-          <span className="track-chip">🏢 Corporate Delegates</span>
-          <span className="track-chip">🎓 Mentors & Sector Experts</span>
           <span className="track-chip">🤝 Volunteers</span>
-          <span className="track-chip">🏛️ Management Teams</span>
         </div>
       </div>
     </section>
