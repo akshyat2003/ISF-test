@@ -24,17 +24,25 @@ function Users() {
   const [error, setError] = useState<string | null>(null);
 
   // Create credentials for Jury member, Delegate, Customer Support, Staff, etc.
-  const [showCreate, setShowCreate] = useState(false);
+  const createParam = params.get("create") === "true";
+  const roleParam = params.get("role") as Role | null;
+  const [showCreate, setShowCreate] = useState(true);
   const [newFullName, setNewFullName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newMobile, setNewMobile] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<Role>("customer_support");
+  const [newRole, setNewRole] = useState<Role>(roleParam || "customer_support");
   const [newEdition, setNewEdition] = useState("2026");
   const [createResult, setCreateResult] = useState<AdminCreateCredentialResponse | null>(null);
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (params.get("create") === "true") setShowCreate(true);
+    const r = params.get("role") as Role;
+    if (r) setNewRole(r);
+  }, [params]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -117,9 +125,9 @@ function Users() {
             Inspect all users registered across the platform (Startups, Support, Jury, Delegates, Volunteers).
           </p>
         </div>
-        {can(me, "role.assign") && (
+        {(can(me, "role.assign") || me?.roles.includes("admin")) && (
           <button className="btn btn-primary" onClick={() => { setShowCreate(!showCreate); setCreateResult(null); }}>
-            {showCreate ? "Close Form" : "+ Create Credentials (Admin / Management / Support / Jury)"}
+            {showCreate ? "Hide Credentials Form" : "+ Create Staff Credentials (Customer Support / Management)"}
           </button>
         )}
       </div>
@@ -128,19 +136,127 @@ function Users() {
         <section className="card" style={{ margin: "16px 0 24px", borderColor: "var(--accent)", background: "#fafafa" }}>
           <h2 style={{ marginTop: 0 }}>Issue User & Staff Credentials</h2>
           <p className="muted small">
-            Admin can directly create accounts with custom or auto-generated passwords for <strong>Administrators</strong>, <strong>Management Team</strong>, <strong>Customer Support</strong>, <strong>Jury Members</strong>, and other roles.
+            Admin can directly create credentials with custom or auto-generated passwords for <strong>Customer Support</strong>, <strong>Management Team</strong>, <strong>Administrators</strong>, and other staff members.
           </p>
+
+          {/* Quick Role Preset Pills */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", marginBottom: "12px" }}>
+            <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Quick Role Preset:</span>
+            <button
+              type="button"
+              onClick={() => setNewRole("customer_support")}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "20px",
+                border: newRole === "customer_support" ? "2px solid #dc2626" : "1px solid #cbd5e1",
+                background: newRole === "customer_support" ? "#fee2e2" : "#ffffff",
+                color: newRole === "customer_support" ? "#dc2626" : "#475569",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              🎧 Customer Support
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewRole("management")}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "20px",
+                border: newRole === "management" ? "2px solid #2563eb" : "1px solid #cbd5e1",
+                background: newRole === "management" ? "#dbeafe" : "#ffffff",
+                color: newRole === "management" ? "#2563eb" : "#475569",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              👔 Management Team
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewRole("admin")}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "20px",
+                border: newRole === "admin" ? "2px solid #16a34a" : "1px solid #cbd5e1",
+                background: newRole === "admin" ? "#dcfce7" : "#ffffff",
+                color: newRole === "admin" ? "#15803d" : "#475569",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              🛡️ Administrator
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewRole("jury_member")}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "20px",
+                border: newRole === "jury_member" ? "2px solid #ea580c" : "1px solid #cbd5e1",
+                background: newRole === "jury_member" ? "#ffedd5" : "#ffffff",
+                color: newRole === "jury_member" ? "#c2410c" : "#475569",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              ⚖️ Jury Member
+            </button>
+          </div>
+
+          {/* Dynamic Role Guidance Notice */}
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: "8px",
+              marginBottom: "14px",
+              background: newRole === "customer_support" ? "#fff1f2" : newRole === "management" ? "#eff6ff" : "#f8fafc",
+              border: `1px solid ${newRole === "customer_support" ? "#fecdd3" : newRole === "management" ? "#bfdbfe" : "#e2e8f0"}`,
+              fontSize: "13px",
+              color: newRole === "customer_support" ? "#9f1239" : newRole === "management" ? "#1e40af" : "#334155",
+            }}
+          >
+            {newRole === "customer_support" && (
+              <span>🎧 <strong>Customer Support:</strong> User can log in to their dedicated Help Desk (<code>/support</code>) to manage live tickets, respond to attendee emergencies, and acknowledge alerts.</span>
+            )}
+            {newRole === "management" && (
+              <span>👔 <strong>Management Team:</strong> User can log in to review startup applications (<code>/applications</code>), calibrate AI ranking criteria (<code>/ranking</code>), manage jury rubrics (<code>/jury</code>), and broadcast event notices (<code>/notices</code>).</span>
+            )}
+            {newRole === "admin" && (
+              <span>🛡️ <strong>Administrator:</strong> User has super-administrator access across all console modules, roles, and platform settings.</span>
+            )}
+            {newRole !== "customer_support" && newRole !== "management" && newRole !== "admin" && (
+              <span>Creating staff credentials for <strong>{label(newRole)}</strong>.</span>
+            )}
+          </div>
+
           <form onSubmit={handleCreateCredential} style={{ display: "grid", gap: 14 }}>
             <div className="two">
               <label>Full Name *
-                <input type="text" required placeholder="e.g. Ramesh Kumar (Management)" value={newFullName} onChange={(e) => setNewFullName(e.target.value)} />
+                <input type="text" required placeholder={newRole === "customer_support" ? "e.g. Priya Sharma (Support Lead)" : newRole === "management" ? "e.g. Ramesh Kumar (Management)" : "e.g. Staff Name"} value={newFullName} onChange={(e) => setNewFullName(e.target.value)} />
               </label>
               <label>Role to Grant *
                 <select value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}>
-                  <option value="admin">Administrator (Full Console & Staff Access)</option>
-                  <option value="management">Management Team (Evaluations & Approvals)</option>
-                  <option value="customer_support">Customer Support (Help Desk & Tickets)</option>
-                  <option value="jury_member">Jury Member (Pitch Scoring & Evaluations)</option>
+                  <option value="customer_support">🎧 Customer Support (Help Desk & Tickets)</option>
+                  <option value="management">👔 Management Team (Applications & Approvals)</option>
+                  <option value="admin">🛡️ Administrator (Full Console Access)</option>
+                  <option value="jury_member">⚖️ Jury Member (Pitch Scoring & Evaluations)</option>
                   <option value="volunteer">Volunteer (Participant Support)</option>
                   <option value="delegate">Delegate (VIP / Attendee)</option>
                   <option value="startup_team_leader">Startup Team Leader</option>

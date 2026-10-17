@@ -452,7 +452,7 @@ export default function DashboardPage() {
 
         {/* User Accounts & Credentials */}
         {(isAdmin || can(me, "user.read")) && (
-          <Link href="/users" className="module-card">
+          <div className="module-card" style={{ cursor: "default" }}>
             <div className="module-top">
               <div className="module-icon-wrap" style={{ background: "#dcfce7", color: "#15803d" }}>
                 👤
@@ -460,15 +460,55 @@ export default function DashboardPage() {
               <div>
                 <h3 className="module-name">Accounts & Roles</h3>
                 <p className="module-desc">
-                  Administer staff access, grant evaluator & jury permissions, view audit logs, and activate accounts.
+                  Issue credentials for <strong>Customer Support</strong> and <strong>Management Team</strong>, administer staff access, and inspect all platform users.
                 </p>
               </div>
             </div>
-            <div className="module-footer" style={{ color: "#15803d" }}>
-              <span>Manage staff & permissions</span>
-              <span>→</span>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "6px 0 16px" }}>
+              <Link
+                href="/users?create=true&role=customer_support"
+                style={{
+                  background: "#fef2f2",
+                  color: "#dc2626",
+                  border: "1px solid #fecaca",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  fontWeight: 600,
+                  fontSize: "12px",
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                🎧 + Customer Support
+              </Link>
+              <Link
+                href="/users?create=true&role=management"
+                style={{
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  fontWeight: 600,
+                  fontSize: "12px",
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                👔 + Management Team
+              </Link>
             </div>
-          </Link>
+            <div className="module-footer" style={{ color: "#15803d" }}>
+              <Link href="/users" style={{ textDecoration: "none", color: "inherit", display: "flex", width: "100%", justifyContent: "space-between" }}>
+                <span>Manage staff & permissions</span>
+                <span>→</span>
+              </Link>
+            </div>
+          </div>
         )}
 
         {/* AI Ranking */}

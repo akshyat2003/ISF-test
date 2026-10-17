@@ -752,14 +752,15 @@ async function handler(request: Request) {
               email = coalesce(${email || null}, email),
               mobile_e164 = coalesce(${mobile || null}, mobile_e164),
               password_hash = ${passwordHash},
+              category = ${role},
               status = 'active',
               updated_at = now()
           where id = ${userId}
         `;
       } else {
         const [created] = await sql`
-          insert into user_accounts (auth_subject, email, full_name, mobile_e164, password_hash, status)
-          values (${authSub}, ${email || null}, ${fullName}, ${mobile || null}, ${passwordHash}, 'active')
+          insert into user_accounts (auth_subject, email, full_name, mobile_e164, password_hash, status, category)
+          values (${authSub}, ${email || null}, ${fullName}, ${mobile || null}, ${passwordHash}, 'active', ${role})
           returning id
         `;
         userId = created.id;
