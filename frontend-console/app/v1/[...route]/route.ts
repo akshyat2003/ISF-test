@@ -63,20 +63,17 @@ function verifyPassword(password: string, combinedHash: string): boolean {
 }
 
 function getTransporter() {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const port = Number(process.env.SMTP_PORT) || 587;
+  const host = process.env.SMTP_HOST || "smtp.mail.yahoo.com";
+  const user = process.env.SMTP_USER || "akshyatraj@yahoo.com";
+  const pass = process.env.SMTP_PASS || "fmsfaftyihknretj";
+  const port = Number(process.env.SMTP_PORT) || 465;
 
-  if (host && user && pass) {
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-    });
-  }
-  return null;
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
 }
 
 const ALL_ADMIN_PERMISSIONS = [
@@ -158,12 +155,31 @@ async function handler(request: Request) {
       const transporter = getTransporter();
       if (transporter) {
         try {
+          const actionLabel = purpose === "password_reset" ? "password reset" : purpose;
           await transporter.sendMail({
-            from: process.env.NOTIFY_EMAIL_FROM || "Udbhav <no-reply@udbhav.org>",
+            from: process.env.NOTIFY_EMAIL_FROM || '"Udbhav 2026" <akshyatraj@yahoo.com>',
             to: email,
             subject: `Your Udbhav Security Code: ${code}`,
-            html: `<div style="font-family:sans-serif;padding:20px;"><h2>Verification Code: ${code}</h2><p>Valid for 10 minutes.</p></div>`,
+            html: `
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:480px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <h2 style="color:#1d4ed8;margin:0 0 10px;font-size:22px;font-weight:800;">Udbhav Console</h2>
+                <h3 style="color:#0f172a;font-size:18px;margin:0 0 12px;">Staff Verification Code</h3>
+                <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 20px;">
+                  Use the 6-digit code below to complete your ${actionLabel} for the Udbhav Console:
+                </p>
+                <div style="background:#f1f5f9;border:1.5px dashed #cbd5e1;border-radius:12px;padding:18px;text-align:center;margin:0 0 20px;">
+                  <span style="font-family:monospace;font-size:36px;font-weight:800;letter-spacing:8px;color:#1d4ed8;">${code}</span>
+                </div>
+                <p style="color:#64748b;font-size:12px;line-height:1.4;margin:0 0 8px;">
+                  ⏱ This code will expire in <strong>10 minutes</strong>.
+                </p>
+                <p style="color:#94a3b8;font-size:11px;margin:0;">
+                  If you did not request this verification code, please ignore this email.
+                </p>
+              </div>
+            `,
           });
+          console.log(`[NODEMAILER] Console OTP ${code} dispatched to ${email}`);
         } catch (e) {
           console.error("[SMTP ERROR]", e);
         }
@@ -767,6 +783,42 @@ async function handler(request: Request) {
           values (${userId}, ${token}, now() + interval '72 hours')
         `;
       } catch {}
+
+      // Dispatch credentials email if email is provided
+      const transporter = getTransporter();
+      if (transporter && email) {
+        try {
+          await transporter.sendMail({
+            from: process.env.NOTIFY_EMAIL_FROM || '"Udbhav 2026" <akshyatraj@yahoo.com>',
+            to: email,
+            subject: `Your Udbhav Console Staff Credentials`,
+            html: `
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <h2 style="color:#1d4ed8;margin:0 0 10px;font-size:22px;font-weight:800;">Udbhav Console</h2>
+                <h3 style="color:#0f172a;font-size:18px;margin:0 0 12px;">Staff Account Created</h3>
+                <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 16px;">
+                  Hello <strong>${fullName}</strong>,<br/><br/>
+                  An administrator has set up your staff credentials for the <strong>Startup Jathara 2026 Admin & Operations Console</strong>.
+                </p>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 20px;font-size:14px;color:#334155;">
+                  <div style="margin-bottom:8px;"><strong>Work Email:</strong> ${email}</div>
+                  <div style="margin-bottom:8px;"><strong>Assigned Role:</strong> ${role.replace(/_/g, " ")}</div>
+                  <div style="margin-bottom:8px;"><strong>Temporary Password:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:14px;">${password}</code></div>
+                </div>
+                <div style="text-align:center;margin:0 0 24px;">
+                  <a href="https://isf-test-sb9i.vercel.app/login" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;">Log In to Console →</a>
+                </div>
+                <p style="color:#64748b;font-size:12px;line-height:1.4;margin:0 0 8px;">
+                  Please change your password after logging in via the <strong>Profile</strong> section.
+                </p>
+              </div>
+            `,
+          });
+          console.log(`[STAFF CREDENTIALS EMAIL DISPATCHED] to ${email}`);
+        } catch (e) {
+          console.error("[STAFF CREDENTIALS EMAIL ERROR]", e);
+        }
+      }
 
       return Response.json({
         user: {

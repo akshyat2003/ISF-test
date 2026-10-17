@@ -64,20 +64,17 @@ function verifyPassword(password: string, combinedHash: string): boolean {
 }
 
 function getTransporter() {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const port = Number(process.env.SMTP_PORT) || 587;
+  const host = process.env.SMTP_HOST || "smtp.mail.yahoo.com";
+  const user = process.env.SMTP_USER || "akshyatraj@yahoo.com";
+  const pass = process.env.SMTP_PASS || "fmsfaftyihknretj";
+  const port = Number(process.env.SMTP_PORT) || 465;
 
-  if (host && user && pass) {
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-    });
-  }
-  return null;
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
 }
 
 const ALL_ADMIN_PERMISSIONS = [
@@ -120,12 +117,31 @@ async function handler(request: Request) {
       const transporter = getTransporter();
       if (transporter) {
         try {
+          const actionLabel = purpose === "password_reset" ? "password reset" : purpose === "verification" ? "password reset" : purpose;
           await transporter.sendMail({
-            from: process.env.NOTIFY_EMAIL_FROM || "Udbhav <no-reply@udbhav.org>",
+            from: process.env.NOTIFY_EMAIL_FROM || '"Udbhav 2026" <akshyatraj@yahoo.com>',
             to: email,
             subject: `Your Udbhav Security Code: ${code}`,
-            html: `<div style="font-family:sans-serif;padding:20px;"><h2>Verification Code: ${code}</h2><p>Valid for 10 minutes.</p></div>`,
+            html: `
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:480px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <h2 style="color:#1d4ed8;margin:0 0 10px;font-size:22px;font-weight:800;">Udbhav 2026</h2>
+                <h3 style="color:#0f172a;font-size:18px;margin:0 0 12px;">One-Time Verification Code</h3>
+                <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 20px;">
+                  Use the 6-digit code below to complete your ${actionLabel} for the Udbhav portal:
+                </p>
+                <div style="background:#f1f5f9;border:1.5px dashed #cbd5e1;border-radius:12px;padding:18px;text-align:center;margin:0 0 20px;">
+                  <span style="font-family:monospace;font-size:36px;font-weight:800;letter-spacing:8px;color:#1d4ed8;">${code}</span>
+                </div>
+                <p style="color:#64748b;font-size:12px;line-height:1.4;margin:0 0 8px;">
+                  ⏱ This code will expire in <strong>10 minutes</strong>.
+                </p>
+                <p style="color:#94a3b8;font-size:11px;margin:0;">
+                  If you did not request this verification code, please ignore this email.
+                </p>
+              </div>
+            `,
           });
+          console.log(`[NODEMAILER] OTP ${code} dispatched to ${email}`);
         } catch (e) {
           console.error("[SMTP ERROR]", e);
         }
@@ -380,10 +396,44 @@ async function handler(request: Request) {
         message: "Registration successful! Your account is active.",
       });
 
-      response.headers.set(
-        "Set-Cookie",
-        `sj_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax`
-      );
+      // Dispatch confirmation email to registered user
+      const transporter = getTransporter();
+      if (transporter && email) {
+        try {
+          await transporter.sendMail({
+            from: process.env.NOTIFY_EMAIL_FROM || '"Udbhav 2026" <akshyatraj@yahoo.com>',
+            to: email,
+            subject: "Welcome to Startup Jathara 2026 - Registration Confirmed",
+            html: `
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <h2 style="color:#1d4ed8;margin:0 0 10px;font-size:22px;font-weight:800;">Startup Jathara 2026</h2>
+                <h3 style="color:#0f172a;font-size:18px;margin:0 0 12px;">Registration Confirmed! 🎉</h3>
+                <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 16px;">
+                  Hello <strong>${fullName}</strong>,<br/><br/>
+                  Your registration for <strong>Startup Jathara 2026</strong> at GIET University has been confirmed. You can now log in to the portal using your credentials:
+                </p>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 20px;font-size:14px;color:#334155;">
+                  <div style="margin-bottom:8px;"><strong>Registered Email:</strong> ${email}</div>
+                  <div style="margin-bottom:8px;"><strong>Category:</strong> ${category}</div>
+                  ${teamName ? `<div style="margin-bottom:8px;"><strong>Organization / Team:</strong> ${teamName}</div>` : ""}
+                </div>
+                <p style="color:#475569;font-size:14px;line-height:1.5;margin:0 0 20px;">
+                  Access your dashboard, submit pitching materials, or track schedule updates here:
+                </p>
+                <div style="text-align:center;margin:0 0 24px;">
+                  <a href="https://isf-test.vercel.app/signin" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;">Log In to Portal →</a>
+                </div>
+                <p style="color:#94a3b8;font-size:11px;margin:0;border-top:1px solid #f1f5f9;padding-top:14px;">
+                  Startup Jathara 2026 · GIET University · If you did not create this account, please contact support.
+                </p>
+              </div>
+            `,
+          });
+          console.log(`[REGISTRATION EMAIL DISPATCHED] to ${email}`);
+        } catch (e) {
+          console.error("[REGISTRATION EMAIL ERROR]", e);
+        }
+      }
 
       return response;
     }

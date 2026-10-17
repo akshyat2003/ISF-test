@@ -21,25 +21,16 @@ const ADMIN_EMAILS = new Set([
 ]);
 
 function getTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT ?? 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const host = process.env.SMTP_HOST || "smtp.mail.yahoo.com";
+  const port = Number(process.env.SMTP_PORT ?? 465);
+  const user = process.env.SMTP_USER || "akshyatraj@yahoo.com";
+  const pass = process.env.SMTP_PASS || "fmsfaftyihknretj";
 
-  if (host) {
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: user ? { user, pass } : undefined,
-    });
-  }
-
-  // Fallback dev transporter (logs to console)
   return nodemailer.createTransport({
-    streamTransport: true,
-    newline: "windows",
-    buffer: true,
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
   });
 }
 
@@ -55,7 +46,7 @@ export async function sendOtpEmail(email: string, purpose: string = "login"): Pr
   });
 
   const transporter = getTransporter();
-  const from = process.env.NOTIFY_EMAIL_FROM || "Udbhav <no-reply@udbhav.org>";
+  const from = process.env.NOTIFY_EMAIL_FROM || '"Udbhav 2026" <akshyatraj@yahoo.com>';
   const actionLabel = purpose === "password_reset" ? "password update" : purpose;
 
   const mailOptions = {
