@@ -670,7 +670,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // ---------------------------------------------------------------- Nodemailer email OTP
   app.post("/v1/auth/otp/send", async (req) => {
     const body = parse(SendOtpRequest, req.body);
-    return sendOtpEmail(body.email, body.purpose);
+    return sendOtpEmail(body.email, body.purpose, sql);
   });
 
   app.post("/v1/auth/otp/verify", async (req, reply) => {

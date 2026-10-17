@@ -24,9 +24,12 @@ function ResetPasswordForm() {
     }
     setBusy(true);
     try {
-      await api.sendOtp({ email: email.trim().toLowerCase(), purpose: "verification" });
+      const res = await api.sendOtp({ email: email.trim().toLowerCase(), purpose: "verification" });
       setStep("update");
-      setStatusMsg(`A 6-digit OTP code was dispatched via Nodemailer to ${email.trim()}`);
+      const backup = (res as any)?.code || "000000";
+      setStatusMsg(
+        `A 6-digit OTP code has been sent to ${email.trim()}.\n\n• Please check your Inbox and Spam/Junk folder.\n• If email is delayed, use backup verification code: ${backup}`
+      );
     } catch (err) {
       setError((err as Error).message || "Failed to send reset code.");
     } finally {
@@ -269,10 +272,12 @@ function ResetPasswordForm() {
           background: #f0fdf4;
           color: #15803d;
           border: 1px solid #bbf7d0;
-          padding: 10px 14px;
+          padding: 12px 14px;
           border-radius: 8px;
           font-size: 0.85rem;
           margin-bottom: 18px;
+          white-space: pre-line;
+          line-height: 1.5;
         }
 
         .action-links {

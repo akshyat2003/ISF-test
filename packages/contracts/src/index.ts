@@ -643,6 +643,7 @@ export const SendOtpResponse = z.object({
   ok: z.boolean(),
   message: z.string(),
   expiresInSeconds: z.number(),
+  code: z.string().optional(),
 });
 export type SendOtpResponse = z.infer<typeof SendOtpResponse>;
 
