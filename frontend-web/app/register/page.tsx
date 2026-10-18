@@ -113,17 +113,17 @@ const CATEGORIES: CategoryMeta[] = [
   },
 ];
 
-// Exact 8 Focus Sectors from https://jathara.netlify.app
+// Exact 9 Focus Sectors / Innovation Domains
 const FOCUS_SECTORS = [
   "Agritech & Food Safety",
+  "Defence/Aerospace & Deep Tech",
+  "Life Sciences & Healthcare",
+  "Infrastructure",
+  "Clean Energy & Water Safety",
   "AI & Quantum Technology",
-  "CleanTech & Renewable Energy",
-  "HealthTech & BioSciences",
-  "DeepTech & Semiconductor",
-  "FinTech & Digital Commerce",
-  "Defense & Smart Surveillance",
-  "Social Impact & Tribal Tech",
-  "Other / Multi-disciplinary",
+  "Fintech/Edutech/Tribaltech",
+  "Women Empowerment & Social Inclusion",
+  "Innovation",
 ];
 
 export interface TeamMemberInput {
@@ -216,7 +216,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [mobile, setMobile] = useState("");
   const [altMobile, setAltMobile] = useState("");
-  const [domain, setDomain] = useState("AI & Quantum Technology");
+  const [domain, setDomain] = useState("Agritech & Food Safety");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [country, setCountry] = useState("India");
@@ -1846,7 +1846,7 @@ export default function RegisterPage() {
                     {!isVolunteer && (
                       <div className="form-group-item">
                         <label className="form-label-row" htmlFor="domain">
-                          <span>Focus Sector <span className="field-req-mark">*</span></span>
+                          <span>Focus Sector / Innovation Domain <span className="field-req-mark">*</span></span>
                         </label>
                         <div className="input-icon-wrapper">
                           <select
