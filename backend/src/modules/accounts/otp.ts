@@ -22,10 +22,20 @@ const ADMIN_EMAILS = new Set([
 ]);
 
 function getTransporter() {
-  const host = process.env.SMTP_HOST || "smtp.mail.yahoo.com";
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = Number(process.env.SMTP_PORT ?? 465);
-  const user = process.env.SMTP_USER || "akshyatraj@yahoo.com";
-  const pass = process.env.SMTP_PASS || "fmsfaftyihknretj";
+  const user = process.env.SMTP_USER || "akshatrajpati@gmail.com";
+  const pass = (process.env.SMTP_PASS || "sndyvqfgfaohmmnh").replace(/\s+/g, "");
+
+  if (host.includes("gmail") || user.includes("gmail")) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+    });
+  }
 
   return nodemailer.createTransport({
     host,

@@ -102,10 +102,20 @@ function verifyPassword(password: string, combinedHash: string): boolean {
 }
 
 function getTransporter() {
-  const host = process.env.SMTP_HOST || "smtp.mail.yahoo.com";
-  const user = process.env.SMTP_USER || "akshyatraj@yahoo.com";
-  const pass = process.env.SMTP_PASS || "fmsfaftyihknretj";
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const user = process.env.SMTP_USER || "akshatrajpati@gmail.com";
+  const pass = (process.env.SMTP_PASS || "sndyvqfgfaohmmnh").replace(/\s+/g, "");
   const port = Number(process.env.SMTP_PORT) || 465;
+
+  if (host.includes("gmail") || user.includes("gmail")) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+    });
+  }
 
   return nodemailer.createTransport({
     host,
@@ -119,6 +129,11 @@ function getTransporter() {
       rejectUnauthorized: false,
     },
   });
+}
+
+function getSenderAddress(displayName = "ISF · Startup Jathara 2026") {
+  const user = process.env.SMTP_USER || "akshatrajpati@gmail.com";
+  return process.env.NOTIFY_EMAIL_FROM || `"${displayName}" <${user}>`;
 }
 
 const IMAGEKIT_PRIVATE_KEY = process.env.IMAGEKIT_PRIVATE_KEY || "private_JWDwiRxL0FA1c0KxsGs5pxy5ykg=";
@@ -244,9 +259,9 @@ async function handler(request: Request) {
         try {
           const actionLabel = purpose === "password_reset" ? "password reset" : purpose === "verification" ? "password reset" : purpose;
           await transporter.sendMail({
-            from: process.env.NOTIFY_EMAIL_FROM || '"Startup Jathara" <akshyatraj@yahoo.com>',
+            from: getSenderAddress("Startup Jathara"),
             to: email,
-            replyTo: "akshyatraj@yahoo.com",
+            replyTo: "akshatrajpati@gmail.com",
             subject: `Startup Jathara Security Code: ${code}`,
             text: `Your Startup Jathara verification code is ${code}. It expires in 15 minutes.`,
             html: `
@@ -1015,7 +1030,7 @@ async function handler(request: Request) {
                       <tr style="border-bottom:1px solid #f1f5f9;">
                         <td style="padding:8px 12px;color:#64748b;">${i + 1}</td>
                         <td style="padding:8px 12px;">
-                          ${m.photoUrl ? `<img src="${m.photoUrl}" alt="${m.name}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;" />` : "—"}
+                          ${m.photoUrl && (m.photoUrl.startsWith("http://") || m.photoUrl.startsWith("https://")) ? `<img src="${m.photoUrl}" alt="${m.name}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;" />` : "—"}
                         </td>
                         <td style="padding:8px 12px;"><strong>${m.name}</strong></td>
                         <td style="padding:8px 12px;color:#2563eb;">${m.email}</td>
@@ -1052,9 +1067,10 @@ async function handler(request: Request) {
             ? "Student Innovator & Team Profile"
             : "Team Leader & Startup Profile";
 
-          await transporter.sendMail({
-            from: process.env.NOTIFY_EMAIL_FROM || '"ISF 2026" <akshyatraj@yahoo.com>',
+          const info = await transporter.sendMail({
+            from: getSenderAddress("ISF 2026"),
             to: email,
+            replyTo: "akshatrajpati@gmail.com",
             subject: emailSubject,
             html: `
               <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,0.06);">
@@ -1075,7 +1091,7 @@ async function handler(request: Request) {
                   <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">
                     ${profileTitle}
                   </div>
-                  ${storedLeaderPhoto ? `<div style="margin-bottom:10px;"><img src="${storedLeaderPhoto}" alt="Photo" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #2563eb;" /></div>` : ""}
+                  ${storedLeaderPhoto && (storedLeaderPhoto.startsWith("http://") || storedLeaderPhoto.startsWith("https://")) ? `<div style="margin-bottom:10px;"><img src="${storedLeaderPhoto}" alt="Photo" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #2563eb;" /></div>` : ""}
                   <div style="margin-bottom:6px;"><strong>${isVolunteer ? "Volunteer Full Name:" : "Team Lead Name:"}</strong> ${fullName}</div>
                   <div style="margin-bottom:6px;"><strong>${isVolunteer ? "Organisation Name:" : isStudentInnovator ? "Project / Team:" : "Startup / Team:"}</strong> ${teamName || organisationName || "N/A"}</div>
                   ${isVolunteer && redgNo ? `<div style="margin-bottom:6px;"><strong>Registration No (Redg No):</strong> ${redgNo}</div>` : ""}
@@ -1105,7 +1121,7 @@ async function handler(request: Request) {
               </div>
             `,
           });
-          console.log(`[REGISTRATION EMAIL DISPATCHED] to ${email}`);
+          console.log(`[REGISTRATION EMAIL DISPATCHED] to ${email}, messageId: ${info?.messageId}`);
         } catch (e) {
           console.error("[REGISTRATION EMAIL ERROR]", e);
         }
@@ -1489,8 +1505,9 @@ async function handler(request: Request) {
       if (transporter && email) {
         try {
           await transporter.sendMail({
-            from: process.env.NOTIFY_EMAIL_FROM || '"Startup Jathara" <akshyatraj@yahoo.com>',
+            from: getSenderAddress("Startup Jathara Console"),
             to: email,
+            replyTo: "akshatrajpati@gmail.com",
             subject: `Your Startup Jathara Credentials - ${role.replace(/_/g, " ").toUpperCase()}`,
             html: `
               <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
