@@ -2,25 +2,25 @@ import Image from "next/image";
 
 export const ORGANIZERS = [
   {
+    id: "isf",
+    name: "ISF Network",
+    subName: "International Startup Foundation",
+    role: "Organizer",
+    src: "/logos/isf-logo.webp",
+  },
+  {
     id: "giet",
     name: "GIET University",
     subName: "Gunupur, Odisha",
-    role: "Host & Academic Institution",
-    src: "/logos/giet.jpg",
-  },
-  {
-    id: "isf",
-    name: "International Startup Foundation",
-    subName: "ISF",
-    role: "Global Startup Ecosystem Partner",
-    src: "/logos/isf.jpg",
+    role: "Host Institution",
+    src: "/logos/giet-logo.png",
   },
   {
     id: "incubatex",
-    name: "Incubatex Innovation",
-    subName: "Innovation Hub",
-    role: "Incubation & Technology Partner",
-    src: "/logos/incubatex.jpg",
+    name: "IncubateX",
+    subName: "Incubation Foundation",
+    role: "Innovation Partner",
+    src: "/logos/incubatex-logo.png",
   },
 ] as const;
 

@@ -12,7 +12,7 @@ export function AccountLink() {
   if (pathname === "/signin") return null;
 
   if (!email) {
-    return <Link href="/signin">Sign In</Link>;
+    return <Link href="/signin" className="nav-signin-link">Sign In</Link>;
   }
 
   return (
