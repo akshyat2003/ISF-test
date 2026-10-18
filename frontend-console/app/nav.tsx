@@ -13,7 +13,7 @@ export function Nav() {
       {(isAdmin || can(me, "application.read_all")) && <Link href="/applications">Applications</Link>}
       {(isAdmin || can(me, "ranking.read")) && <Link href="/ranking">AI ranking</Link>}
       {(isAdmin || can(me, "jury.manage")) && <Link href="/jury">Jury</Link>}
-      {(isAdmin || can(me, "volunteer.read")) && <Link href="/volunteers">Volunteers</Link>}
+      {(isAdmin || can(me, "volunteer.read")) && <Link href="/volunteers">Volunteers & Desk</Link>}
       {(isAdmin || can(me, "support.handle") || can(me, "support.review")) && <Link href="/support">Support</Link>}
       {(isAdmin || can(me, "content.read_all")) && <Link href="/content">Event info</Link>}
       {(isAdmin || can(me, "notice.publish")) && <Link href="/notices">Notices</Link>}

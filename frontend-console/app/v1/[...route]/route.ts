@@ -1837,6 +1837,781 @@ async function handler(request: Request) {
       }
     }
 
+    // ==================================================== VOLUNTEER DESK & DIRECTORY CRUD (PRD §9) ====================================================
+    // ---------------------------------------------------- GET /v1/manage/volunteers (Desk Directory & Manifest)
+    if (
+      (path === "/v1/manage/volunteers" ||
+        path.endsWith("/manage/volunteers") ||
+        path.includes("/manage/volunteers/desk")) &&
+      method === "GET"
+    ) {
+      const q = url.searchParams.get("q")?.toLowerCase().trim() || "";
+      const orgFilter = url.searchParams.get("organisation")?.trim() || "";
+      const assignmentFilter = url.searchParams.get("assignment") || "all";
+      const statusFilter = url.searchParams.get("status") || "all";
+      const edition = Number(url.searchParams.get("edition")) || 2026;
+      const limit = Math.min(Number(url.searchParams.get("limit")) || 200, 500);
+      const offset = Number(url.searchParams.get("offset")) || 0;
+
+      try {
+        // Auto-synchronize any volunteer accounts created in user_accounts into the volunteers table
+        try {
+          await sql`
+            insert into volunteers (
+              user_id, full_name, email, mobile, alt_mobile, organisation_name,
+              redg_no, roll_no, city, state, country, linkedin_url, photo_url, edition_id
+            )
+            select 
+              u.id as user_id,
+              coalesce(nullif(trim(u.full_name), ''), 'Volunteer') as full_name,
+              coalesce(nullif(trim(u.email), ''), 'volunteer@summit.local') as email,
+              coalesce(nullif(trim(u.mobile_e164), ''), '+910000000000') as mobile,
+              coalesce(nullif(trim(u.alt_mobile), ''), u.mobile_e164, '+910000000000') as alt_mobile,
+              coalesce(nullif(trim(u.organisation_name), ''), u.team_name, 'GIET University') as organisation_name,
+              coalesce(nullif(trim(u.redg_no), ''), 'UNREG-' || substr(u.id::text, 1, 6)) as redg_no,
+              coalesce(nullif(trim(u.roll_no), ''), 'ROLL-' || substr(u.id::text, 1, 6)) as roll_no,
+              coalesce(nullif(trim(u.city), ''), 'Gunupur') as city,
+              coalesce(nullif(trim(u.state), ''), 'Odisha') as state,
+              coalesce(nullif(trim(u.country), ''), 'India') as country,
+              u.linkedin_url,
+              u.photo_url,
+              2026 as edition_id
+            from user_accounts u
+            where (u.category = 'volunteer' or exists (
+              select 1 from role_grants rg where rg.user_id = u.id and rg.role = 'volunteer' and rg.revoked_at is null
+            ))
+            and not exists (
+              select 1 from volunteers v where v.user_id = u.id or (u.email is not null and lower(v.email) = lower(u.email))
+            )
+            on conflict do nothing
+          `;
+        } catch (syncErr) {
+          console.warn("[VOLUNTEER DESK SYNC NOTICE]", syncErr);
+        }
+
+        const rows = await sql`
+          select 
+            v.id,
+            v.user_id as "userId",
+            v.full_name as "fullName",
+            v.email,
+            v.mobile,
+            v.alt_mobile as "altMobile",
+            v.organisation_name as "organisationName",
+            v.redg_no as "redgNo",
+            v.roll_no as "rollNo",
+            v.city,
+            v.state,
+            v.country,
+            v.linkedin_url as "linkedinUrl",
+            v.photo_url as "photoUrl",
+            v.edition_id as "editionId",
+            v.created_at as "createdAt",
+            v.updated_at as "updatedAt",
+            coalesce(u.status, 'active') as "accountStatus",
+            u.activated_at as "activatedAt",
+            va.id as "assignmentId",
+            va.state as "assignmentState",
+            va.activated_at as "assignedSince",
+            va.reason as "assignmentReason",
+            case
+              when va.target_startup_id is not null then 'startup'
+              when va.target_jury_user_id is not null then 'jury'
+              else null
+            end as "targetType",
+            case
+              when va.target_startup_id is not null then va.target_startup_id
+              when va.target_jury_user_id is not null then va.target_jury_user_id
+              else null
+            end as "targetId",
+            case
+              when va.target_startup_id is not null then s.name
+              when va.target_jury_user_id is not null then ju.full_name
+              else null
+            end as "targetName"
+          from volunteers v
+          left join user_accounts u on u.id = v.user_id
+          left join volunteer_assignments va on va.volunteer_user_id = v.user_id and va.state <> 'closed'
+          left join startups s on s.id = va.target_startup_id
+          left join user_accounts ju on ju.id = va.target_jury_user_id
+          where (v.edition_id is null or v.edition_id = ${edition})
+            ${
+              q
+                ? sql`and (
+                  lower(coalesce(v.full_name, '')) like ${`%${q}%`}
+                  or lower(coalesce(v.email, '')) like ${`%${q}%`}
+                  or coalesce(v.mobile, '') like ${`%${q}%`}
+                  or coalesce(v.alt_mobile, '') like ${`%${q}%`}
+                  or lower(coalesce(v.organisation_name, '')) like ${`%${q}%`}
+                  or lower(coalesce(v.redg_no, '')) like ${`%${q}%`}
+                  or lower(coalesce(v.roll_no, '')) like ${`%${q}%`}
+                  or lower(coalesce(v.city, '')) like ${`%${q}%`}
+                  or lower(coalesce(v.state, '')) like ${`%${q}%`}
+                )`
+                : sql``
+            }
+            ${
+              orgFilter && orgFilter !== "all"
+                ? sql`and lower(coalesce(v.organisation_name, '')) = ${orgFilter.toLowerCase()}`
+                : sql``
+            }
+            ${
+              assignmentFilter === "assigned"
+                ? sql`and va.id is not null`
+                : assignmentFilter === "unassigned"
+                ? sql`and va.id is null`
+                : sql``
+            }
+            ${
+              statusFilter && statusFilter !== "all"
+                ? sql`and coalesce(u.status, 'active') = ${statusFilter}`
+                : sql``
+            }
+          order by v.created_at desc
+          limit ${limit} offset ${offset}
+        `;
+
+        // Calculate summary metrics
+        const allVolunteers = await sql`
+          select 
+            count(*)::int as total,
+            count(va.id)::int as assigned,
+            count(distinct nullif(trim(v.organisation_name), ''))::int as organisations
+          from volunteers v
+          left join volunteer_assignments va on va.volunteer_user_id = v.user_id and va.state <> 'closed'
+          where (v.edition_id is null or v.edition_id = ${edition})
+        `;
+
+        const distinctOrgs = await sql`
+          select distinct trim(organisation_name) as org
+          from volunteers
+          where organisation_name is not null and trim(organisation_name) <> ''
+          order by org asc
+        `;
+
+        const totalVolunteers = allVolunteers[0]?.total || rows.length;
+        const assignedCount = allVolunteers[0]?.assigned || 0;
+        const unassignedCount = Math.max(0, totalVolunteers - assignedCount);
+
+        return Response.json({
+          ok: true,
+          total: rows.length,
+          summary: {
+            totalVolunteers,
+            assignedCount,
+            unassignedCount,
+            organisationsCount: allVolunteers[0]?.organisations || distinctOrgs.length,
+            availableColleges: distinctOrgs.map((d: any) => d.org).filter(Boolean),
+          },
+          items: rows.map((r: any) => ({
+            id: r.id,
+            userId: r.userId,
+            fullName: r.fullName,
+            email: r.email,
+            mobile: r.mobile,
+            altMobile: r.altMobile,
+            organisationName: r.organisationName,
+            redgNo: r.redgNo,
+            rollNo: r.rollNo,
+            city: r.city,
+            state: r.state,
+            country: r.country,
+            linkedinUrl: r.linkedinUrl,
+            photoUrl: r.photoUrl,
+            editionId: r.editionId || 2026,
+            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+            updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
+            accountStatus: r.accountStatus || "active",
+            activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
+            assignmentId: r.assignmentId || null,
+            assignmentState: r.assignmentState || null,
+            assignedSince: r.assignedSince ? new Date(r.assignedSince).toISOString() : null,
+            assignmentReason: r.assignmentReason || null,
+            targetType: r.targetType || null,
+            targetId: r.targetId || null,
+            targetName: r.targetName || null,
+          })),
+        });
+      } catch (err) {
+        console.error("[GET VOLUNTEERS ERROR]", err);
+        return Response.json({ ok: false, message: (err as Error).message }, { status: 500 });
+      }
+    }
+
+    // ---------------------------------------------------- POST /v1/manage/volunteers (Create Volunteer)
+    if (
+      (path === "/v1/manage/volunteers" || path.endsWith("/manage/volunteers")) &&
+      method === "POST"
+    ) {
+      const body = await request.json();
+      const fullName = String(body.fullName || "").trim();
+      const email = String(body.email || "").toLowerCase().trim();
+      const rawMobile = String(body.mobile || "").trim();
+      const mobile = normalizeMobileNumber(rawMobile) || rawMobile;
+      const rawAltMobile = String(body.altMobile || "").trim();
+      const altMobile = normalizeMobileNumber(rawAltMobile) || rawAltMobile || mobile;
+      const organisationName = String(body.organisationName || body.college || "").trim();
+      const redgNo = String(body.redgNo || "").trim();
+      const rollNo = String(body.rollNo || "").trim();
+      const city = String(body.city || "").trim();
+      const state = String(body.state || "").trim();
+      const country = String(body.country || "India").trim();
+      const linkedinUrl = normalizeLinkedInUrl(String(body.linkedinUrl || ""));
+      const rawPhoto = typeof body.photoUrl === "string" ? body.photoUrl.trim() : null;
+      const password = typeof body.password === "string" && body.password.trim() ? body.password.trim() : "Volunteer@2026!";
+      const edition = Number(body.edition) || 2026;
+
+      if (!fullName) return Response.json({ message: "Full name is required" }, { status: 400 });
+      if (!email || !email.includes("@")) return Response.json({ message: "A valid email address is required" }, { status: 400 });
+      if (!mobile) return Response.json({ message: "Primary mobile phone is required" }, { status: 400 });
+      if (!organisationName) return Response.json({ message: "Organisation / College name is required" }, { status: 400 });
+      if (!redgNo) return Response.json({ message: "Registration number (Redg No) is required" }, { status: 400 });
+      if (!rollNo) return Response.json({ message: "Roll number / Student ID is required" }, { status: 400 });
+
+      // Upload photo to ImageKit if provided as base64
+      let storedPhoto = rawPhoto;
+      if (rawPhoto && !rawPhoto.startsWith("http")) {
+        const cleanName = fullName.replace(/[^a-zA-Z0-9]/g, "_") || "volunteer";
+        storedPhoto = await uploadToImageKit(rawPhoto, `volunteer_${Date.now()}_${cleanName}.jpg`);
+      }
+
+      const passwordHash = hashPassword(password);
+      const authSub = `dev|${email}`;
+
+      // Insert or update user_accounts
+      const [user] = await sql`
+        insert into user_accounts (
+          auth_subject, email, full_name, mobile_e164, password_hash,
+          status, category, organisation_name, redg_no, roll_no, photo_url,
+          alt_mobile, city, state, country, linkedin_url
+        )
+        values (
+          ${authSub}, ${email}, ${fullName}, ${mobile}, ${passwordHash},
+          'active', 'volunteer', ${organisationName}, ${redgNo}, ${rollNo}, ${storedPhoto || null},
+          ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
+        )
+        on conflict (lower(email)) where email is not null do update
+        set auth_subject = ${authSub},
+            full_name = ${fullName},
+            mobile_e164 = ${mobile},
+            password_hash = coalesce(${passwordHash}, user_accounts.password_hash),
+            category = 'volunteer',
+            status = 'active',
+            organisation_name = ${organisationName},
+            redg_no = ${redgNo},
+            roll_no = ${rollNo},
+            photo_url = coalesce(${storedPhoto}, user_accounts.photo_url),
+            alt_mobile = coalesce(${altMobile}, user_accounts.alt_mobile),
+            city = coalesce(${city}, user_accounts.city),
+            state = coalesce(${state}, user_accounts.state),
+            country = coalesce(${country}, user_accounts.country),
+            linkedin_url = coalesce(${linkedinUrl}, user_accounts.linkedin_url),
+            updated_at = now()
+        returning id, email, full_name
+      `;
+
+      const userId = user.id;
+
+      // Grant volunteer role & edition access
+      await sql`
+        insert into role_grants (user_id, role, edition_id)
+        values (${userId}, 'volunteer', ${edition})
+        on conflict do nothing
+      `;
+      await sql`
+        insert into edition_access (user_id, edition_id, source)
+        values (${userId}, ${edition}, 'predefined')
+        on conflict do nothing
+      `;
+
+      // Insert or update volunteers table
+      const [volunteer] = await sql`
+        insert into volunteers (
+          user_id, full_name, email, mobile, alt_mobile, organisation_name,
+          redg_no, roll_no, city, state, country, linkedin_url, photo_url, edition_id
+        )
+        values (
+          ${userId}, ${fullName}, ${email}, ${mobile}, ${altMobile}, ${organisationName},
+          ${redgNo}, ${rollNo}, ${city || 'Gunupur'}, ${state || 'Odisha'}, ${country || 'India'},
+          ${linkedinUrl || null}, ${storedPhoto || null}, ${edition}
+        )
+        on conflict (user_id) do update set
+          full_name = ${fullName},
+          email = ${email},
+          mobile = ${mobile},
+          alt_mobile = ${altMobile},
+          organisation_name = ${organisationName},
+          redg_no = ${redgNo},
+          roll_no = ${rollNo},
+          city = ${city || 'Gunupur'},
+          state = ${state || 'Odisha'},
+          country = ${country || 'India'},
+          linkedin_url = coalesce(${linkedinUrl}, volunteers.linkedin_url),
+          photo_url = coalesce(${storedPhoto}, volunteers.photo_url),
+          updated_at = now()
+        returning *
+      `;
+
+      // Dispatch welcome credentials email
+      const transporter = getTransporter();
+      if (transporter && email) {
+        try {
+          await transporter.sendMail({
+            from: getSenderAddress("ISF 2026 Summit Desk"),
+            to: email,
+            subject: `Official Summit Volunteer Accreditation Confirmed - ${fullName}`,
+            html: `
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:540px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;">
+                <h2 style="color:#1d5a47;margin:0 0 10px;">ISF · Startup Jathara 2026</h2>
+                <h3 style="color:#0f172a;margin:0 0 14px;">Volunteer Accreditation Confirmed</h3>
+                <p style="color:#475569;font-size:14px;line-height:1.5;">
+                  Hello <strong>${fullName}</strong>,<br/><br/>
+                  You have been officially registered and accredited as a Summit Volunteer for <strong>ISF Startup Jathara 2026</strong> at GIET University.
+                </p>
+                <div style="background:#f4f9f6;border:1px solid #c6dbd2;border-radius:12px;padding:16px;margin:16px 0;font-size:13px;color:#1e293b;">
+                  <div><strong>Full Name:</strong> ${fullName}</div>
+                  <div><strong>Registration No:</strong> ${redgNo}</div>
+                  <div><strong>Roll No:</strong> ${rollNo}</div>
+                  <div><strong>College / Institution:</strong> ${organisationName}</div>
+                  <div><strong>Portal Sign-In:</strong> ${email}</div>
+                  <div><strong>Temporary Password:</strong> <code>${password}</code></div>
+                </div>
+                <p style="color:#64748b;font-size:12px;">Please carry your Student ID card along with your digital or printed pass at the summit check-in desk.</p>
+              </div>
+            `,
+          });
+        } catch (mailErr) {
+          console.warn("[VOLUNTEER EMAIL DISPATCH WARNING]", mailErr);
+        }
+      }
+
+      return Response.json(
+        {
+          ok: true,
+          message: `Volunteer ${fullName} successfully registered into database.`,
+          volunteer: {
+            id: volunteer.id,
+            userId,
+            fullName: volunteer.full_name,
+            email: volunteer.email,
+            mobile: volunteer.mobile,
+            altMobile: volunteer.alt_mobile,
+            organisationName: volunteer.organisation_name,
+            redgNo: volunteer.redg_no,
+            rollNo: volunteer.roll_no,
+            city: volunteer.city,
+            state: volunteer.state,
+            country: volunteer.country,
+            linkedinUrl: volunteer.linkedin_url,
+            photoUrl: volunteer.photo_url,
+            editionId: volunteer.edition_id,
+            accountStatus: "active",
+            createdAt: volunteer.created_at,
+            updatedAt: volunteer.updated_at,
+          },
+        },
+        { status: 201 }
+      );
+    }
+
+    // ---------------------------------------------------- GET /v1/manage/volunteers/:id (Detail)
+    const volunteerIdMatch = path.match(/\/manage\/volunteers\/([0-9a-fA-F-]+)$/);
+    if (volunteerIdMatch && method === "GET") {
+      const targetId = volunteerIdMatch[1];
+      const rows = await sql`
+        select 
+          v.id,
+          v.user_id as "userId",
+          v.full_name as "fullName",
+          v.email,
+          v.mobile,
+          v.alt_mobile as "altMobile",
+          v.organisation_name as "organisationName",
+          v.redg_no as "redgNo",
+          v.roll_no as "rollNo",
+          v.city,
+          v.state,
+          v.country,
+          v.linkedin_url as "linkedinUrl",
+          v.photo_url as "photoUrl",
+          v.edition_id as "editionId",
+          v.created_at as "createdAt",
+          v.updated_at as "updatedAt",
+          coalesce(u.status, 'active') as "accountStatus",
+          u.activated_at as "activatedAt",
+          va.id as "assignmentId",
+          va.state as "assignmentState",
+          va.activated_at as "assignedSince",
+          va.reason as "assignmentReason",
+          case
+            when va.target_startup_id is not null then 'startup'
+            when va.target_jury_user_id is not null then 'jury'
+            else null
+          end as "targetType",
+          case
+            when va.target_startup_id is not null then va.target_startup_id
+            when va.target_jury_user_id is not null then va.target_jury_user_id
+            else null
+          end as "targetId",
+          case
+            when va.target_startup_id is not null then s.name
+            when va.target_jury_user_id is not null then ju.full_name
+            else null
+          end as "targetName"
+        from volunteers v
+        left join user_accounts u on u.id = v.user_id
+        left join volunteer_assignments va on va.volunteer_user_id = v.user_id and va.state <> 'closed'
+        left join startups s on s.id = va.target_startup_id
+        left join user_accounts ju on ju.id = va.target_jury_user_id
+        where v.id = ${targetId}
+      `;
+      if (rows.length) {
+        return Response.json({ ok: true, volunteer: rows[0] });
+      }
+      return Response.json({ message: "Volunteer not found" }, { status: 404 });
+    }
+
+    // ---------------------------------------------------- PUT/PATCH /v1/manage/volunteers/:id (Update)
+    if (volunteerIdMatch && (method === "PUT" || method === "PATCH")) {
+      const targetId = volunteerIdMatch[1];
+      const body = await request.json();
+
+      const [existing] = await sql`select * from volunteers where id = ${targetId}`;
+      if (!existing) {
+        return Response.json({ message: "Volunteer not found" }, { status: 404 });
+      }
+
+      const fullName = body.fullName !== undefined ? String(body.fullName).trim() : existing.full_name;
+      const email = body.email !== undefined ? String(body.email).toLowerCase().trim() : existing.email;
+      const rawMobile = body.mobile !== undefined ? String(body.mobile).trim() : existing.mobile;
+      const mobile = normalizeMobileNumber(rawMobile) || rawMobile;
+      const rawAltMobile = body.altMobile !== undefined ? String(body.altMobile).trim() : existing.alt_mobile;
+      const altMobile = normalizeMobileNumber(rawAltMobile) || rawAltMobile;
+      const organisationName = body.organisationName !== undefined ? String(body.organisationName).trim() : existing.organisation_name;
+      const redgNo = body.redgNo !== undefined ? String(body.redgNo).trim() : existing.redg_no;
+      const rollNo = body.rollNo !== undefined ? String(body.rollNo).trim() : existing.roll_no;
+      const city = body.city !== undefined ? String(body.city).trim() : existing.city;
+      const state = body.state !== undefined ? String(body.state).trim() : existing.state;
+      const country = body.country !== undefined ? String(body.country).trim() : existing.country;
+      const linkedinUrl = body.linkedinUrl !== undefined ? normalizeLinkedInUrl(String(body.linkedinUrl)) : existing.linkedin_url;
+      const accountStatus = body.accountStatus !== undefined ? String(body.accountStatus).trim() : undefined;
+
+      let storedPhoto = existing.photo_url;
+      if (body.photoUrl !== undefined) {
+        const rawPhoto = String(body.photoUrl || "").trim();
+        if (rawPhoto && !rawPhoto.startsWith("http")) {
+          const cleanName = fullName.replace(/[^a-zA-Z0-9]/g, "_") || "volunteer";
+          storedPhoto = await uploadToImageKit(rawPhoto, `volunteer_${Date.now()}_${cleanName}.jpg`);
+        } else {
+          storedPhoto = rawPhoto || null;
+        }
+      }
+
+      // Update volunteers table
+      const [updated] = await sql`
+        update volunteers set
+          full_name = ${fullName},
+          email = ${email},
+          mobile = ${mobile},
+          alt_mobile = ${altMobile},
+          organisation_name = ${organisationName},
+          redg_no = ${redgNo},
+          roll_no = ${rollNo},
+          city = ${city},
+          state = ${state},
+          country = ${country},
+          linkedin_url = ${linkedinUrl || null},
+          photo_url = ${storedPhoto},
+          updated_at = now()
+        where id = ${targetId}
+        returning *
+      `;
+
+      // Update user_accounts table
+      if (existing.user_id) {
+        await sql`
+          update user_accounts set
+            full_name = ${fullName},
+            email = ${email},
+            auth_subject = ${email ? `dev|${email}` : sql`auth_subject`},
+            mobile_e164 = ${mobile},
+            alt_mobile = ${altMobile},
+            organisation_name = ${organisationName},
+            redg_no = ${redgNo},
+            roll_no = ${rollNo},
+            city = ${city},
+            state = ${state},
+            country = ${country},
+            linkedin_url = ${linkedinUrl || null},
+            photo_url = ${storedPhoto},
+            status = coalesce(${accountStatus || null}, status),
+            updated_at = now()
+          where id = ${existing.user_id}
+        `;
+      }
+
+      return Response.json({
+        ok: true,
+        message: "Volunteer details updated successfully.",
+        volunteer: {
+          id: updated.id,
+          userId: updated.user_id,
+          fullName: updated.full_name,
+          email: updated.email,
+          mobile: updated.mobile,
+          altMobile: updated.alt_mobile,
+          organisationName: updated.organisation_name,
+          redgNo: updated.redg_no,
+          rollNo: updated.roll_no,
+          city: updated.city,
+          state: updated.state,
+          country: updated.country,
+          linkedinUrl: updated.linkedin_url,
+          photoUrl: updated.photo_url,
+          editionId: updated.edition_id,
+          accountStatus: accountStatus || "active",
+          createdAt: updated.created_at,
+          updatedAt: updated.updated_at,
+        },
+      });
+    }
+
+    // ---------------------------------------------------- DELETE /v1/manage/volunteers/:id (Delete)
+    if (volunteerIdMatch && method === "DELETE") {
+      const targetId = volunteerIdMatch[1];
+      const [existing] = await sql`select * from volunteers where id = ${targetId}`;
+      if (!existing) {
+        return Response.json({ message: "Volunteer not found" }, { status: 404 });
+      }
+
+      // Close active assignment if any
+      await sql`
+        update volunteer_assignments
+        set state = 'closed', closed_at = now(), closed_by = ${existing.user_id}, close_reason = 'Volunteer record deleted by administrator'
+        where volunteer_user_id = ${existing.user_id} and state <> 'closed'
+      `;
+
+      // Revoke volunteer role grant
+      await sql`
+        update role_grants set revoked_at = now()
+        where user_id = ${existing.user_id} and role = 'volunteer'
+      `;
+
+      // Delete from volunteers table
+      await sql`delete from volunteers where id = ${targetId}`;
+
+      // Check if user has other active roles; if not, mark status deactivated
+      const otherRoles = await sql`
+        select id from role_grants where user_id = ${existing.user_id} and revoked_at is null
+      `;
+      if (otherRoles.length === 0) {
+        await sql`update user_accounts set status = 'deactivated', updated_at = now() where id = ${existing.user_id}`;
+      }
+
+      return Response.json({
+        ok: true,
+        id: targetId,
+        message: `Volunteer ${existing.full_name} has been removed from summit accreditation.`,
+      });
+    }
+
+    // ---------------------------------------------------- GET /v1/manage/editions/:year/volunteers (Assignment Overview fallback)
+    const volOverviewMatch = path.match(/\/manage\/editions\/(\d+)\/volunteers$/);
+    if (volOverviewMatch && method === "GET") {
+      const year = Number(volOverviewMatch[1]) || 2026;
+      try {
+        const freeV = await sql`
+          select u.id, coalesce(u.full_name, v.full_name) as name
+          from user_accounts u
+          left join volunteers v on v.user_id = u.id
+          where (
+            sj_person_in_edition(u.id, 'volunteer', ${year}::smallint)
+            or u.category = 'volunteer'
+            or exists (select 1 from volunteers vx where vx.user_id = u.id)
+          )
+          and not exists (
+            select 1 from volunteer_assignments va
+            where va.edition_id = ${year} and va.volunteer_user_id = u.id and va.state <> 'closed'
+          )
+          order by name asc
+        `;
+
+        const startups = await sql`
+          select s.id, s.name from startups s
+          where sj_startup_in_edition(s.id, ${year}::smallint)
+            and not exists (
+              select 1 from volunteer_assignments va 
+              where va.edition_id = ${year} and va.target_startup_id = s.id and va.state <> 'closed'
+            )
+          order by s.name asc
+        `;
+
+        const jurors = await sql`
+          select u.id, u.full_name as name from user_accounts u
+          where sj_person_in_edition(u.id, 'jury_member', ${year}::smallint)
+            and not exists (
+              select 1 from volunteer_assignments va 
+              where va.edition_id = ${year} and va.target_jury_user_id = u.id and va.state <> 'closed'
+            )
+          order by u.full_name asc
+        `;
+
+        const unassignedTargets = [
+          ...startups.map((s: any) => ({ type: "startup" as const, id: s.id, name: s.name })),
+          ...jurors.map((j: any) => ({ type: "jury" as const, id: j.id, name: j.name })),
+        ];
+
+        const activeRows = await sql`
+          select va.id, va.edition_id as edition, va.state, va.volunteer_user_id as "volunteerId",
+                 vu.full_name as "volunteerName", va.target_startup_id as "startupId", s.name as "startupName",
+                 va.target_jury_user_id as "juryId", ju.full_name as "juryName", va.run_id as "runId",
+                 cu.full_name as "createdBy", va.created_at as "createdAt", va.reason, va.activated_at as "activatedAt",
+                 va.closed_at as "closedAt", va.close_reason as "closeReason", va.replaces_id as "replacesId"
+          from volunteer_assignments va
+          join user_accounts vu on vu.id = va.volunteer_user_id
+          join user_accounts cu on cu.id = va.created_by
+          left join startups s on s.id = va.target_startup_id
+          left join user_accounts ju on ju.id = va.target_jury_user_id
+          where va.edition_id = ${year} and va.state = 'active'
+          order by va.activated_at desc
+        `;
+
+        const historyRows = await sql`
+          select va.id, va.edition_id as edition, va.state, va.volunteer_user_id as "volunteerId",
+                 vu.full_name as "volunteerName", va.target_startup_id as "startupId", s.name as "startupName",
+                 va.target_jury_user_id as "juryId", ju.full_name as "juryName", va.run_id as "runId",
+                 cu.full_name as "createdBy", va.created_at as "createdAt", va.reason, va.activated_at as "activatedAt",
+                 va.closed_at as "closedAt", xu.full_name as "closedBy", va.close_reason as "closeReason", va.replaces_id as "replacesId"
+          from volunteer_assignments va
+          join user_accounts vu on vu.id = va.volunteer_user_id
+          join user_accounts cu on cu.id = va.created_by
+          left join user_accounts xu on xu.id = va.closed_by
+          left join startups s on s.id = va.target_startup_id
+          left join user_accounts ju on ju.id = va.target_jury_user_id
+          where va.edition_id = ${year} and va.state = 'closed'
+          order by va.closed_at desc
+          limit 50
+        `;
+
+        return Response.json({
+          edition: year,
+          freeVolunteers: freeV.map((v: any) => ({ id: v.id, name: v.name || "Volunteer" })),
+          unassignedTargets,
+          active: activeRows.map((r: any) => ({
+            id: r.id,
+            edition: r.edition,
+            state: r.state,
+            volunteer: { id: r.volunteerId, name: r.volunteerName },
+            target: r.startupId
+              ? { type: "startup", id: r.startupId, name: r.startupName || "Startup" }
+              : { type: "jury", id: r.juryId, name: r.juryName || "Juror" },
+            runId: r.runId,
+            createdBy: r.createdBy,
+            createdAt: new Date(r.createdAt).toISOString(),
+            reason: r.reason,
+            activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
+            closedAt: r.closedAt ? new Date(r.closedAt).toISOString() : null,
+            closedBy: null,
+            closeReason: r.closeReason,
+            replacesId: r.replacesId,
+            notifications: [],
+          })),
+          history: historyRows.map((r: any) => ({
+            id: r.id,
+            edition: r.edition,
+            state: r.state,
+            volunteer: { id: r.volunteerId, name: r.volunteerName },
+            target: r.startupId
+              ? { type: "startup", id: r.startupId, name: r.startupName || "Startup" }
+              : { type: "jury", id: r.juryId, name: r.juryName || "Juror" },
+            runId: r.runId,
+            createdBy: r.createdBy,
+            createdAt: new Date(r.createdAt).toISOString(),
+            reason: r.reason,
+            activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
+            closedAt: r.closedAt ? new Date(r.closedAt).toISOString() : null,
+            closedBy: r.closedBy,
+            closeReason: r.closeReason,
+            replacesId: r.replacesId,
+            notifications: [],
+          })),
+          runs: [],
+          draftRun: null,
+        });
+      } catch (err) {
+        console.error("[VOLUNTEER OVERVIEW ERROR]", err);
+      }
+    }
+
+    // ---------------------------------------------------- POST /v1/manage/editions/:year/volunteer-assignments (Manual Desk Assignment)
+    const volAssignPostMatch = path.match(/\/manage\/editions\/(\d+)\/volunteer-assignments$/);
+    if (volAssignPostMatch && method === "POST") {
+      const year = Number(volAssignPostMatch[1]) || 2026;
+      const body = await request.json();
+      const rawToken = getAuthToken(request);
+      const payload = await extractPayload(rawToken);
+      const callerEmail = await resolveUserEmail(payload, sql);
+      const [caller] = callerEmail ? await sql`select id from user_accounts where lower(email) = ${callerEmail} limit 1` : [null];
+      const volunteerUserId = body.volunteerUserId;
+      const target = body.target;
+      const reason = body.reason || "Manual desk assignment";
+      const creatorId = caller?.id || volunteerUserId;
+
+      const [assign] = await sql`
+        insert into volunteer_assignments (
+          edition_id, volunteer_user_id,
+          target_startup_id, target_jury_user_id,
+          state, created_by, reason, activated_at, activated_by
+        )
+        values (
+          ${year}, ${volunteerUserId},
+          ${target.type === 'startup' ? target.id : null},
+          ${target.type === 'jury' ? target.id : null},
+          'active', ${creatorId}, ${reason}, now(), ${creatorId}
+        )
+        returning id
+      `;
+
+      return Response.json({
+        id: assign.id,
+        edition: year,
+        state: "active",
+        volunteer: { id: volunteerUserId, name: "Volunteer" },
+        target,
+        runId: null,
+        createdBy: callerEmail || "admin",
+        createdAt: new Date().toISOString(),
+        reason,
+        activatedAt: new Date().toISOString(),
+        closedAt: null,
+        closedBy: null,
+        closeReason: null,
+        replacesId: null,
+        notifications: [],
+      });
+    }
+
+    // ---------------------------------------------------- POST /v1/manage/volunteer-assignments/:id/close (End Duty)
+    const volCloseMatch = path.match(/\/manage\/volunteer-assignments\/([0-9a-fA-F-]+)\/close$/);
+    if (volCloseMatch && method === "POST") {
+      const assignId = volCloseMatch[1];
+      const body = await request.json();
+      const rawToken = getAuthToken(request);
+      const payload = await extractPayload(rawToken);
+      const callerEmail = await resolveUserEmail(payload, sql);
+      const [caller] = callerEmail ? await sql`select id from user_accounts where lower(email) = ${callerEmail} limit 1` : [null];
+
+      await sql`
+        update volunteer_assignments
+        set state = 'closed',
+            closed_at = now(),
+            closed_by = coalesce(${caller?.id || null}, volunteer_user_id),
+            close_reason = ${body.reason || 'Assignment ended by admin'}
+        where id = ${assignId}
+      `;
+      return Response.json({ ok: true, id: assignId });
+    }
+
     // ---------------------------------------------------- Proxy all other routes to Render backend
     try {
       const renderBase =
