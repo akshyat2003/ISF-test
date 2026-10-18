@@ -972,6 +972,8 @@ async function handler(request: Request) {
           roles,
           category,
           teamName,
+        photoUrl: storedLeaderPhoto,
+          membersCount: members.length,
         },
         message: "Registration successful! Your account is active.",
       });
@@ -980,6 +982,125 @@ async function handler(request: Request) {
         "Set-Cookie",
         `sj_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax`
       );
+
+      // Dispatch confirmation email to team leader / student innovator / volunteer
+      const transporter = getTransporter();
+      if (transporter && email) {
+        try {
+          const membersListHtml = members.length > 0
+            ? `
+              <div style="margin-top:20px;">
+                <h4 style="margin:0 0 10px;color:#1e293b;font-size:14px;font-weight:700;">Registered Team Members (${members.length} / 5):</h4>
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:#334155;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                  <thead>
+                    <tr style="background:#f1f5f9;text-align:left;">
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">#</th>
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Photo</th>
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Name</th>
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Email</th>
+                      <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Phone</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${members.map((m, i) => `
+                      <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:8px 12px;color:#64748b;">${i + 1}</td>
+                        <td style="padding:8px 12px;">
+                          ${m.photoUrl ? `<img src="${m.photoUrl}" alt="${m.name}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;" />` : "—"}
+                        </td>
+                        <td style="padding:8px 12px;"><strong>${m.name}</strong></td>
+                        <td style="padding:8px 12px;color:#2563eb;">${m.email}</td>
+                        <td style="padding:8px 12px;">${m.phone}</td>
+                      </tr>
+                    `).join("")}
+                  </tbody>
+                </table>
+              </div>
+            `
+            : "";
+
+          const emailSubject = isVolunteer
+            ? `Welcome to ISF Startup Jathara 2026 - Volunteer Registration Confirmed (${fullName})`
+            : isStudentInnovator
+            ? `Welcome to ISF Startup Jathara 2026 - ${teamName || fullName} (Student Innovator) Registration Confirmed`
+            : `Welcome to ISF Startup Jathara 2026 - ${teamName || fullName} Registration Confirmed`;
+
+          const bannerTitle = isVolunteer
+            ? "🎉 Volunteer Registration Confirmed!"
+            : isStudentInnovator
+            ? "🎉 Student Innovator Registration Confirmed!"
+            : "🎉 Startup Registration Confirmed!";
+
+          const bannerDesc = isVolunteer
+            ? `Dear <strong>${fullName}</strong>, your volunteer registration for ISF · Startup Jathara 2026 has been successfully confirmed and recorded into the summit database.`
+            : isStudentInnovator
+            ? `Dear <strong>${fullName}</strong>, your student innovation credentials, project profile, and team members have been saved to the summit database.`
+            : `Dear <strong>${fullName}</strong>, your startup credentials and team members have been saved to the summit database.`;
+
+          const profileTitle = isVolunteer
+            ? "Volunteer Profile & Summit Credentials"
+            : isStudentInnovator
+            ? "Student Innovator & Team Profile"
+            : "Team Leader & Startup Profile";
+
+          await transporter.sendMail({
+            from: process.env.NOTIFY_EMAIL_FROM || '"ISF 2026" <akshyatraj@yahoo.com>',
+            to: email,
+            subject: emailSubject,
+            html: `
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:20px auto;padding:32px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,0.06);">
+                <div style="margin-bottom:16px;">
+                  <span style="display:inline-block;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:0.04em;">Dandakaranya Innovation Summit</span>
+                  <h2 style="color:#1d4ed8;margin:8px 0 4px;font-size:22px;font-weight:800;">ISF · Startup Jathara 2026</h2>
+                  <p style="color:#64748b;font-size:13px;margin:0;">GIET University, Gunupur, Odisha · 18–20 December 2026</p>
+                </div>
+
+                <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:16px;margin:16px 0 20px;">
+                  <h3 style="color:#065f46;font-size:16px;margin:0 0 6px;">${bannerTitle}</h3>
+                  <p style="color:#047857;font-size:13px;margin:0;line-height:1.4;">
+                    ${bannerDesc}
+                  </p>
+                </div>
+
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin:0 0 16px;font-size:13px;color:#334155;line-height:1.6;">
+                  <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">
+                    ${profileTitle}
+                  </div>
+                  ${storedLeaderPhoto ? `<div style="margin-bottom:10px;"><img src="${storedLeaderPhoto}" alt="Photo" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #2563eb;" /></div>` : ""}
+                  <div style="margin-bottom:6px;"><strong>${isVolunteer ? "Volunteer Full Name:" : "Team Lead Name:"}</strong> ${fullName}</div>
+                  <div style="margin-bottom:6px;"><strong>${isVolunteer ? "Organisation Name:" : isStudentInnovator ? "Project / Team:" : "Startup / Team:"}</strong> ${teamName || organisationName || "N/A"}</div>
+                  ${isVolunteer && redgNo ? `<div style="margin-bottom:6px;"><strong>Registration No (Redg No):</strong> ${redgNo}</div>` : ""}
+                  ${isVolunteer && rollNo ? `<div style="margin-bottom:6px;"><strong>Roll Number / Student ID:</strong> ${rollNo}</div>` : ""}
+                  <div style="margin-bottom:6px;"><strong>Registered Email:</strong> ${email}</div>
+                  <div style="margin-bottom:6px;"><strong>Primary Phone:</strong> ${mobile || "N/A"}</div>
+                  ${altMobile ? `<div style="margin-bottom:6px;"><strong>Alternate Phone:</strong> ${altMobile}</div>` : ""}
+                  ${!isVolunteer && domain ? `<div style="margin-bottom:6px;"><strong>Domain / Sector:</strong> ${domain || "N/A"}</div>` : ""}
+                  <div style="margin-bottom:6px;"><strong>Location:</strong> ${[city, state, country].filter(Boolean).join(", ")}</div>
+                  ${linkedinUrl ? `<div style="margin-bottom:6px;"><strong>LinkedIn:</strong> <a href="${linkedinUrl}" target="_blank" style="color:#2563eb;text-decoration:none;">${linkedinUrl}</a></div>` : ""}
+                  ${isVolunteer ? `<div style="margin-bottom:6px;"><strong>Assigned Track:</strong> Summit Operations & Participant Support Volunteer</div>` : ""}
+                </div>
+
+                ${membersListHtml}
+
+                <p style="color:#475569;font-size:14px;line-height:1.5;margin:24px 0 16px;">
+                  ${isVolunteer
+                    ? "You can now log in to the portal using your registered email and password to view volunteer briefing schedules, duty assignments, and announcements:"
+                    : `You can now log in to the portal using your registered email and password to track your ${isStudentInnovator ? "innovation prototype review" : "startup review"}, schedule pitches, and connect with mentors:`}
+                </p>
+                <div style="text-align:center;margin:0 0 24px;">
+                  <a href="https://isf-test.vercel.app/signin" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block;font-size:14px;box-shadow:0 4px 10px rgba(37,99,235,0.2);">Log In to Portal →</a>
+                </div>
+                <p style="color:#94a3b8;font-size:11px;margin:0;border-top:1px solid #f1f5f9;padding-top:14px;text-align:center;">
+                  Startup Jathara 2026 · Organised by International Startup Foundation (ISF) & GIET University.
+                </p>
+              </div>
+            `,
+          });
+          console.log(`[REGISTRATION EMAIL DISPATCHED] to ${email}`);
+        } catch (e) {
+          console.error("[REGISTRATION EMAIL ERROR]", e);
+        }
+      }
 
       return response;
     }
