@@ -26,11 +26,18 @@ function ResetPasswordForm() {
     try {
       const res = await api.sendOtp({ email: email.trim().toLowerCase(), purpose: "password_reset" });
       setStep("update");
-      const backup = (res as any)?.code || "000000";
-      setCode(backup);
-      setStatusMsg(
-        `A 6-digit OTP code has been sent to ${email.trim()}.\n\n• Please check your Inbox and Spam/Junk folder.\n• We have pre-filled verification code (${backup}) below so you can proceed without waiting.`
-      );
+      const genCode = (res as any)?.code;
+      if (genCode) {
+        setCode(genCode);
+        setStatusMsg(
+          `A 6-digit OTP code has been sent to ${email.trim()}.\n\n• Please check your Inbox and Spam/Junk folder.\n• We have pre-filled verification code (${genCode}) below so you can proceed without waiting.`
+        );
+      } else {
+        setCode("");
+        setStatusMsg(
+          `A 6-digit OTP code has been sent to ${email.trim()}.\n\n• Please check your Inbox and Spam/Junk folder and enter the 6-digit code below.`
+        );
+      }
     } catch (err) {
       setError((err as Error).message || "Failed to send reset code.");
     } finally {

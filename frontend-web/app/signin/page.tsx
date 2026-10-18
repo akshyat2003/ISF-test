@@ -35,21 +35,15 @@ function SignInForm() {
     setError(null);
     setBusy(true);
     try {
-      if (password.trim()) {
-        try {
-          await verifyCode(email.trim(), "000000", password.trim());
-          router.push(next);
-          return;
-        } catch {
-          // Fall through to OTP if password doesn't match
-        }
+      if (!password.trim()) {
+        setError("Password is required. Or sign in with an OTP verification code below.");
+        return;
       }
-      // If no password or failed, send OTP code via Nodemailer
-      await startSignIn(email.trim());
-      setStep("otp");
-      setStatusMsg(`A verification code was sent via Nodemailer to ${email.trim()}`);
+      await verifyCode(email.trim(), "", password.trim());
+      router.push(next);
+      return;
     } catch (err) {
-      setError((err as Error).message || "Sign-in failed. Please verify credentials.");
+      setError((err as Error).message || "Incorrect password. Please verify your credentials or reset your password.");
     } finally {
       setBusy(false);
     }

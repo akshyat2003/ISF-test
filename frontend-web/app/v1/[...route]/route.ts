@@ -301,56 +301,66 @@ async function handler(request: Request) {
       });
     }
 
-    // ---------------------------------------------------- POST /v1/auth/otp/verify
-    if (path.includes("/auth/otp/verify") && method === "POST") {
-      const body = await request.json();
+    // ---------------------------------------------------- POST /v1/auth/otp/verify & POST /v1/auth/login
+    if ((path.includes("/auth/otp/verify") || path.includes("/auth/login")) && method === "POST") {
+      const body = await request.json().catch(() => ({}));
       const email = String(body.email || "").toLowerCase().trim();
       const code = String(body.code || "").trim();
       const password = typeof body.password === "string" ? body.password.trim() : "";
 
-      if (!email) {
-        return Response.json({ message: "Email is required" }, { status: 400 });
+      if (!email || !email.includes("@")) {
+        return Response.json({ code: "invalid_email", message: "A valid email address is required" }, { status: 400 });
       }
 
       let verified = false;
 
-      // 1. Password check
+      // 1. Password sign-in mode (strict verification against user_accounts.password_hash)
       if (password) {
-        if (password === "Udbhav@2026" || password === "Admin@123") {
-          verified = true;
-        } else {
-          try {
-            const rows = await sql`
-              select password_hash from user_accounts where lower(email) = ${email}
-            `;
-            if (rows[0]?.password_hash && verifyPassword(password, rows[0].password_hash)) {
-              verified = true;
-            }
-          } catch (e) {
-            console.error("[DB PWD CHECK ERROR]", e);
+        try {
+          const rows = await sql`
+            select id, password_hash, status from user_accounts where lower(email) = ${email} limit 1
+          `;
+          if (!rows || rows.length === 0) {
+            return Response.json({ code: "invalid_credentials", message: "Invalid email or password." }, { status: 401 });
           }
+          const userAccount = rows[0];
+          if (!userAccount.password_hash) {
+            return Response.json({
+              code: "password_not_set",
+              message: "No password has been set for this account. Please sign in using an OTP verification code or reset your password.",
+            }, { status: 400 });
+          }
+          if (!verifyPassword(password, userAccount.password_hash)) {
+            return Response.json({
+              code: "invalid_credentials",
+              message: "Incorrect password. Please verify your credentials or reset your password.",
+            }, { status: 401 });
+          }
+          verified = true;
+        } catch (e) {
+          console.error("[DB PWD CHECK ERROR]", e);
+          return Response.json({ code: "auth_error", message: "Authentication service error. Please try again." }, { status: 500 });
         }
-      }
+      } else {
+        // 2. OTP sign-in mode (strictly when password is NOT provided)
+        const cleanCode = code.replace(/\s+/g, "").trim();
+        if (!cleanCode) {
+          return Response.json({ code: "missing_code", message: "Verification code is required." }, { status: 400 });
+        }
 
-      // 2. OTP check if password not passed or not verified
-      const cleanCode = code.replace(/\s+/g, "").trim();
-      if (!verified) {
-        if (cleanCode === "000000" || cleanCode === "123456") {
-          verified = true;
-        } else {
-          try {
-            const rows = await sql`
-              select id, code from otp_verifications
-              where lower(email) = ${email} and expires_at > now()
-              order by created_at desc limit 1
-            `;
-            if (rows[0] && rows[0].code.trim() === cleanCode) {
-              verified = true;
-              await sql`delete from otp_verifications where lower(email) = ${email}`;
-            }
-          } catch (dbErr) {
-            console.error("[OTP DB CHECK ERROR in web verify]", dbErr);
+        try {
+          const rows = await sql`
+            select id, code from otp_verifications
+            where lower(email) = ${email} and expires_at > now()
+            order by created_at desc limit 1
+          `;
+          if (rows[0] && rows[0].code.trim() === cleanCode) {
+            verified = true;
+            await sql`delete from otp_verifications where lower(email) = ${email}`;
+            otpStore.delete(email);
           }
+        } catch (dbErr) {
+          console.error("[OTP DB CHECK ERROR in web verify]", dbErr);
         }
 
         if (!verified) {
@@ -361,13 +371,13 @@ async function handler(request: Request) {
           }
         }
 
-        if (!verified && cleanCode) {
-          return Response.json({ code: "invalid_otp", detail: "Invalid password or verification code. (Emergency backup code: 000000 or 123456)" }, { status: 400 });
+        if (!verified) {
+          return Response.json({ code: "invalid_otp", message: "Invalid or expired verification code. Please request a new code." }, { status: 400 });
         }
       }
 
       if (!verified) {
-        return Response.json({ code: "invalid_otp", detail: "Authentication failed. (Emergency backup code: 000000 or 123456)" }, { status: 400 });
+        return Response.json({ code: "auth_failed", message: "Authentication failed. Please verify credentials." }, { status: 401 });
       }
 
       const authSub = `dev|${email}`;
@@ -1142,23 +1152,23 @@ async function handler(request: Request) {
       }
 
       const cleanCode = code.replace(/\s+/g, "").trim();
+      if (!cleanCode) {
+        return Response.json({ code: "missing_code", detail: "Verification code is required." }, { status: 400 });
+      }
+
       let codeValid = false;
-      if (cleanCode === "000000" || cleanCode === "123456") {
-        codeValid = true;
-      } else {
-        try {
-          const rows = await sql`
-            select id, code from otp_verifications
-            where lower(email) = ${email} and expires_at > now()
-            order by created_at desc limit 1
-          `;
-          if (rows[0] && rows[0].code.trim() === cleanCode) {
-            codeValid = true;
-            await sql`delete from otp_verifications where lower(email) = ${email}`;
-          }
-        } catch (dbErr) {
-          console.error("[OTP DB CHECK ERROR in web password/update]", dbErr);
+      try {
+        const rows = await sql`
+          select id, code from otp_verifications
+          where lower(email) = ${email} and expires_at > now()
+          order by created_at desc limit 1
+        `;
+        if (rows[0] && rows[0].code.trim() === cleanCode) {
+          codeValid = true;
+          await sql`delete from otp_verifications where lower(email) = ${email}`;
         }
+      } catch (dbErr) {
+        console.error("[OTP DB CHECK ERROR in web password/update]", dbErr);
       }
 
       if (!codeValid) {
@@ -1170,7 +1180,7 @@ async function handler(request: Request) {
       }
 
       if (!codeValid) {
-        return Response.json({ code: "invalid_otp", detail: "Invalid or expired verification code. (Emergency backup code: 000000 or 123456)" }, { status: 400 });
+        return Response.json({ code: "invalid_otp", detail: "Invalid or expired verification code. Please request a new code." }, { status: 400 });
       }
 
       const newHash = hashPassword(newPassword);
@@ -1349,7 +1359,10 @@ async function handler(request: Request) {
       const user = rows[0];
       if (!user) return Response.json({ message: "User not found" }, { status: 404 });
 
-      if (user.password_hash && currentPassword) {
+      if (user.password_hash) {
+        if (!currentPassword) {
+          return Response.json({ message: "Current password is required." }, { status: 400 });
+        }
         const valid = verifyPassword(currentPassword, user.password_hash);
         if (!valid) {
           return Response.json({ message: "Current password does not match our records." }, { status: 400 });

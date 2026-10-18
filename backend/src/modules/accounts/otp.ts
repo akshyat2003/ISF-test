@@ -142,42 +142,43 @@ export async function verifyOtpAndLogin(
 
   let verified = false;
 
-  // Check password if provided
+  // 1. Check password if provided (strict verification against user_accounts.password_hash)
   if (password && password.trim()) {
     const pwd = password.trim();
-    if (pwd === "Udbhav@2026" || pwd === "Admin@123") {
-      verified = true;
-    } else {
-      try {
-        const rows = (await sql`
-          select password_hash from user_accounts where lower(email) = ${normalizedEmail}
-        `) as unknown as { password_hash: string | null }[];
-        if (rows[0]?.password_hash && verifyPassword(pwd, rows[0].password_hash)) {
-          verified = true;
-        }
-      } catch {}
+    const rows = (await sql`
+      select id, password_hash, status from user_accounts where lower(email) = ${normalizedEmail} limit 1
+    `) as unknown as { id: string; password_hash: string | null; status: string }[];
+    const userAccount = rows[0];
+    if (!userAccount) {
+      throw new AppError(401, "invalid_credentials", "Invalid email or password.");
     }
-  }
-
-  // Check OTP if not yet verified by password
-  if (!verified) {
+    if (!userAccount.password_hash) {
+      throw new AppError(400, "password_not_set", "No password has been set for this account. Please sign in using an OTP verification code or reset your password.");
+    }
+    if (!verifyPassword(pwd, userAccount.password_hash)) {
+      throw new AppError(401, "invalid_credentials", "Incorrect password. Please verify your credentials or reset your password.");
+    }
+    verified = true;
+  } else {
+    // 2. Check OTP if password was NOT provided
     const clean = trimmedCode.replace(/\s+/g, "");
-    if (clean === "000000" || clean === "123456") {
-      verified = true;
-    } else {
-      try {
-        const rows = (await sql`
-          select id, code from otp_verifications
-          where lower(email) = ${normalizedEmail} and expires_at > now()
-          order by created_at desc limit 1
-        `) as unknown as { id: string; code: string }[];
-        if (rows[0] && rows[0].code.trim() === clean) {
-          verified = true;
-          await sql`delete from otp_verifications where lower(email) = ${normalizedEmail}`;
-        }
-      } catch (dbErr) {
-        console.error("[OTP DB CHECK ERROR in backend verify]", dbErr);
+    if (!clean) {
+      throw new AppError(400, "missing_code", "Verification code is required.");
+    }
+
+    try {
+      const rows = (await sql`
+        select id, code from otp_verifications
+        where lower(email) = ${normalizedEmail} and expires_at > now()
+        order by created_at desc limit 1
+      `) as unknown as { id: string; code: string }[];
+      if (rows[0] && rows[0].code.trim() === clean) {
+        verified = true;
+        await sql`delete from otp_verifications where lower(email) = ${normalizedEmail}`;
+        otpStore.delete(normalizedEmail);
       }
+    } catch (dbErr) {
+      console.error("[OTP DB CHECK ERROR in backend verify]", dbErr);
     }
 
     if (!verified) {
@@ -187,7 +188,7 @@ export async function verifyOtpAndLogin(
           otpStore.delete(normalizedEmail);
           throw new AppError(400, "otp_expired", "The verification code has expired. Please request a new one.");
         }
-        if (stored.code === trimmedCode) {
+        if (stored.code === clean || stored.code === trimmedCode) {
           verified = true;
           otpStore.delete(normalizedEmail);
         } else {
@@ -196,16 +197,16 @@ export async function verifyOtpAndLogin(
             otpStore.delete(normalizedEmail);
             throw new AppError(400, "too_many_attempts", "Too many incorrect attempts. Please request a new code.");
           }
-          throw new AppError(400, "invalid_otp", "Invalid verification code. (Emergency backup code: 000000)");
+          throw new AppError(400, "invalid_otp", "Invalid verification code.");
         }
       } else {
-        throw new AppError(400, "invalid_otp", "Invalid password or verification code. (Emergency backup code: 000000)");
+        throw new AppError(400, "invalid_otp", "Invalid verification code.");
       }
     }
   }
 
   if (!verified) {
-    throw new AppError(400, "invalid_otp", "Verification failed.");
+    throw new AppError(401, "auth_failed", "Authentication failed.");
   }
 
   // Ensure user account exists in DB
@@ -282,23 +283,23 @@ export async function updatePasswordWithOtp(
   }
 
   const clean = trimmedCode.replace(/\s+/g, "");
+  if (!clean) {
+    throw new AppError(400, "missing_code", "Verification code is required.");
+  }
+
   let codeValid = false;
-  if (clean === "000000" || clean === "123456") {
-    codeValid = true;
-  } else {
-    try {
-      const rows = (await sql`
-        select id, code from otp_verifications
-        where lower(email) = ${normalizedEmail} and expires_at > now()
-        order by created_at desc limit 1
-      `) as unknown as { id: string; code: string }[];
-      if (rows[0] && rows[0].code.trim() === clean) {
-        codeValid = true;
-        await sql`delete from otp_verifications where lower(email) = ${normalizedEmail}`;
-      }
-    } catch (dbErr) {
-      console.error("[OTP DB CHECK ERROR in backend password/update]", dbErr);
+  try {
+    const rows = (await sql`
+      select id, code from otp_verifications
+      where lower(email) = ${normalizedEmail} and expires_at > now()
+      order by created_at desc limit 1
+    `) as unknown as { id: string; code: string }[];
+    if (rows[0] && rows[0].code.trim() === clean) {
+      codeValid = true;
+      await sql`delete from otp_verifications where lower(email) = ${normalizedEmail}`;
     }
+  } catch (dbErr) {
+    console.error("[OTP DB CHECK ERROR in backend password/update]", dbErr);
   }
 
   if (!codeValid) {
@@ -308,7 +309,7 @@ export async function updatePasswordWithOtp(
         otpStore.delete(normalizedEmail);
         throw new AppError(400, "otp_expired", "The verification code has expired. Please request a new one.");
       }
-      if (stored.code === trimmedCode) {
+      if (stored.code === clean || stored.code === trimmedCode) {
         codeValid = true;
         otpStore.delete(normalizedEmail);
       } else {
@@ -317,13 +318,13 @@ export async function updatePasswordWithOtp(
           otpStore.delete(normalizedEmail);
           throw new AppError(400, "too_many_attempts", "Too many incorrect attempts. Please request a new code.");
         }
-        throw new AppError(400, "invalid_otp", "Invalid verification code. (Emergency backup code: 000000)");
+        throw new AppError(400, "invalid_otp", "Invalid verification code.");
       }
     }
   }
 
   if (!codeValid) {
-    throw new AppError(400, "invalid_otp", "Invalid or expired verification code. (Emergency backup code: 000000)");
+    throw new AppError(400, "invalid_otp", "Invalid or expired verification code. Please request a new code.");
   }
 
   // Hash new password

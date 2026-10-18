@@ -93,11 +93,15 @@ export function createSession(cfg: SessionConfig) {
     if ("email" in who) {
       if (!who.email) throw new Error("Email is required");
       try {
-        const res = await api.verifyOtp({ email: who.email, code, password });
+        const res = await api.verifyOtp({
+          email: who.email.trim().toLowerCase(),
+          code: code || "",
+          password: password ? password.trim() : undefined,
+        });
         storeSessionToken(res.token);
         return;
       } catch (err) {
-        if (cfg.authMode === "supabase" && cfg.supabaseUrl && cfg.supabaseAnonKey) {
+        if (!password && cfg.authMode === "supabase" && cfg.supabaseUrl && cfg.supabaseAnonKey) {
           const { data, error } = await sb().auth.verifyOtp({ email: who.email, token: code, type: "email" });
           if (!error && data.session?.access_token) {
             changed(data.session.access_token);
@@ -110,6 +114,18 @@ export function createSession(cfg: SessionConfig) {
     const { data, error } = await sb().auth.verifyOtp({ phone: who.phone, token: code, type: "sms" });
     if (error) throw error;
     changed(data.session?.access_token ?? null);
+  }
+
+  async function signInWithPassword(id: string | SignInIdentifier, password: string): Promise<void> {
+    const who = asIdentifier(id);
+    if (!("email" in who) || !who.email) throw new Error("Email is required");
+    if (!password || !password.trim()) throw new Error("Password is required");
+    const res = await api.verifyOtp({
+      email: who.email.trim().toLowerCase(),
+      code: "",
+      password: password.trim(),
+    });
+    storeSessionToken(res.token);
   }
 
   async function signOut(): Promise<void> {
@@ -232,7 +248,7 @@ export function createSession(cfg: SessionConfig) {
 
   return {
     api, authMode: cfg.authMode, signInMethods: cfg.signInMethods ?? (["email", "phone"] as SignInMethod[]),
-    getToken, startSignIn, verifyCode, signOut, useSessionIdentity, storeSessionToken,
+    getToken, startSignIn, verifyCode, signInWithPassword, signOut, useSessionIdentity, storeSessionToken,
     /** @deprecated use useSessionIdentity (it also returns mobile numbers for phone sign-ins). */
     useSessionEmail: useSessionIdentity,
     mfa,

@@ -34,6 +34,7 @@ import type {
   SendOtpResponse,
   VerifyOtpRequest,
   VerifyOtpResponse,
+  LoginRequest,
   UpdatePasswordRequest,
   UpdatePasswordResponse,
   SignInIdentifier,
@@ -159,7 +160,9 @@ export function createApi({ baseUrl, getToken }: ApiOptions) {
       req<{ token: string }>("POST", "/v1/dev/session", { ...(typeof id === "string" ? { email: id } : id), mfa }),
     sendOtp: (body: SendOtpRequest) => req<SendOtpResponse>("POST", "/v1/auth/otp/send", body),
     verifyOtp: (body: VerifyOtpRequest) => req<VerifyOtpResponse>("POST", "/v1/auth/otp/verify", body),
+    login: (body: LoginRequest) => req<VerifyOtpResponse>("POST", "/v1/auth/otp/verify", body),
     updatePassword: (body: UpdatePasswordRequest) => req<UpdatePasswordResponse>("POST", "/v1/auth/password/update", body),
+    changePassword: (body: { currentPassword?: string; newPassword: string }) => req<{ ok: boolean; message: string }>("POST", "/v1/me/password", body),
     register: (body: RegistrationRequest) => req<RegistrationResponse>("POST", "/v1/me/registrations", body),
     signup: (body: PublicSignUpRequest) => req<PublicSignUpResponse>("POST", "/v1/public/signup", body),
     myApplications: () => req<MyApplicationsResponse>("GET", "/v1/me/applications"),
@@ -317,3 +320,5 @@ export function formatDateRange(start: string, end: string): string {
   const monthYear = new Intl.DateTimeFormat("en-IN", { timeZone: IST, month: "long", year: "numeric" }).format(e);
   return `${day(s)}–${day(e)} ${monthYear}`;
 }
+
+export type { LoginRequest };

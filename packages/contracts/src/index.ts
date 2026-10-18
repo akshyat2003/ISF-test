@@ -656,10 +656,16 @@ export type SendOtpResponse = z.infer<typeof SendOtpResponse>;
 
 export const VerifyOtpRequest = z.object({
   email: z.string().trim().toLowerCase().email(),
-  code: z.string().trim().min(4).max(10),
+  code: z.string().trim().max(10).optional().default(""),
   password: z.string().optional(),
 });
 export type VerifyOtpRequest = z.infer<typeof VerifyOtpRequest>;
+
+export const LoginRequest = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(1, "Password is required"),
+});
+export type LoginRequest = z.infer<typeof LoginRequest>;
 
 export const VerifyOtpResponse = z.object({
   token: z.string(),

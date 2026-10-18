@@ -13,7 +13,7 @@ import {
   NoticeWithdraw, PublishRequest, PushTokenRegister,
   EmergencyReport, HelpDeskAsk, HelpDeskEscalate, RequesterTicketCreate, SupportAssign, SupportContactLog, SupportEscalate, SupportNote,
   SupportPolicy, SupportStatusUpdate, SupportTicketCreate, TICKET_STATUSES, TicketText,
-  SendOtpRequest, VerifyOtpRequest, UpdatePasswordRequest,
+  SendOtpRequest, VerifyOtpRequest, LoginRequest, UpdatePasswordRequest,
 } from "@sj/contracts";
 import { z } from "zod";
 import type { Config } from "./config.js";
@@ -1365,9 +1365,57 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return result;
   });
 
+  app.post("/v1/auth/login", async (req, reply) => {
+    const body = parse(LoginRequest, req.body);
+    const result = await verifyOtpAndLogin(
+      sql,
+      config.devAuthSecret ?? "dev-auth-secret-for-jwt-signing-12345",
+      body.email,
+      "",
+      body.password,
+    );
+    reply.header(
+      "set-cookie",
+      `sj_token=${encodeURIComponent(result.token)}; Path=/; Max-Age=86400; SameSite=Lax`
+    );
+    return result;
+  });
+
   app.post("/v1/auth/password/update", async (req) => {
     const body = parse(UpdatePasswordRequest, req.body);
     return updatePasswordWithOtp(sql, body.email, body.code, body.newPassword);
+  });
+
+  app.post("/v1/me/password", { preHandler: [auth] }, async (req) => {
+    const principal = principalOf(req);
+    const account = principal.account;
+    if (!account) throw new AppError(401, "unauthorized", "Sign in first");
+    const body = req.body as any;
+    const currentPassword = String(body?.currentPassword || "").trim();
+    const newPassword = String(body?.newPassword || "").trim();
+
+    if (!newPassword || newPassword.length < 6) {
+      throw new AppError(400, "weak_password", "New password must be at least 6 characters long.");
+    }
+
+    const rows = (await sql`
+      select id, password_hash from user_accounts where id = ${account.id} limit 1
+    `) as unknown as { id: string; password_hash: string | null }[];
+    const user = rows[0];
+    if (!user) throw new AppError(404, "not_found", "User not found");
+
+    if (user.password_hash) {
+      if (!currentPassword) {
+        throw new AppError(400, "missing_password", "Current password is required.");
+      }
+      if (!verifyPassword(currentPassword, user.password_hash)) {
+        throw new AppError(400, "invalid_password", "Current password does not match our records.");
+      }
+    }
+
+    const newHash = hashPassword(newPassword);
+    await sql`update user_accounts set password_hash = ${newHash}, updated_at = now() where id = ${user.id}`;
+    return { ok: true, message: "Your password has been updated successfully." };
   });
 
   return app;

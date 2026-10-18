@@ -53,7 +53,7 @@ function LoginForm() {
       if (stage === "email") {
         if (password.trim()) {
           // Direct password verification
-          await verifyCode(email.trim(), "000000", password.trim());
+          await verifyCode(email.trim(), "", password.trim());
           await redirectByRole();
           return;
         }
