@@ -202,22 +202,38 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       if (!rollNo) throw new AppError(400, "bad_request", "Roll number / student ID is required");
     }
 
+    const rawMembers: Array<any> = Array.isArray(body.members) ? body.members : [];
+    const members: Array<{ name: string; photoUrl?: string; phone: string; email: string }> = rawMembers.slice(0, 5).map((m: any) => ({
+      name: String(m?.name || "").trim(),
+      photoUrl: typeof m?.photoUrl === "string" ? m.photoUrl.trim() : undefined,
+      phone: normaliseMobile(String(m?.phone || "").trim()) || String(m?.phone || "").trim(),
+      email: String(m?.email || "").toLowerCase().trim(),
+    }));
+
+    const isStartupLeader = category === "startup_founder" || category === "startup_team_leader" || category === "startup_leader";
+    const isStudentInnovator = category === "student_innovator";
+    const isVolunteer = category === "volunteer";
+
     let role = "delegate";
-    if (category === "startup_founder" || category === "startup_team_leader") role = "startup_team_leader";
-    else if (category === "student_innovator" || category === "startup_team_member") role = "startup_team_member";
-    else if (category === "volunteer") role = "volunteer";
+    if (isStartupLeader || isStudentInnovator) role = "startup_team_leader";
+    else if (category === "startup_team_member") role = "startup_team_member";
+    else if (isVolunteer) role = "volunteer";
     else if (category === "mentor" || category === "jury_member") role = "jury_member";
     else if (category === "management") role = "management";
+
+    const teamMembersSummary = members.length > 0
+      ? members.map((m, i) => `${i + 1}. ${m.name} (${m.email}, ${m.phone})`).join("; ")
+      : String(body.teamMembers || "").trim();
 
     const [u] = await sql<{ id: string }[]>`
       insert into user_accounts (
         auth_subject, email, full_name, mobile_e164, status,
-        category, team_name, team_members, domain, alt_mobile, city, state, country, linkedin_url,
+        category, team_name, team_members, team_members_json, domain, alt_mobile, city, state, country, linkedin_url,
         redg_no, roll_no, organisation_name, photo_url
       )
       values (
         ${`dev|${email}`}, ${email}, ${fullName}, ${mobile || null}, 'active',
-        ${category}, ${teamName || organisationName || null}, ${teamMembers || null}, ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null},
+        ${category}, ${teamName || organisationName || null}, ${teamMembersSummary || null}, ${JSON.stringify(members)}::jsonb, ${domain || null}, ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null},
         ${redgNo || null}, ${rollNo || null}, ${organisationName || teamName || null}, ${photoUrl || null}
       )
       on conflict (lower(email)) where email is not null do update
@@ -225,7 +241,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           mobile_e164 = coalesce(${mobile || null}, user_accounts.mobile_e164),
           category = ${category},
           team_name = coalesce(${teamName || organisationName || null}, user_accounts.team_name),
-          team_members = coalesce(${teamMembers || null}, user_accounts.team_members),
+          team_members = coalesce(${teamMembersSummary || null}, user_accounts.team_members),
+          team_members_json = coalesce(${JSON.stringify(members)}::jsonb, user_accounts.team_members_json),
           domain = coalesce(${domain || null}, user_accounts.domain),
           alt_mobile = coalesce(${altMobile || null}, user_accounts.alt_mobile),
           city = coalesce(${city || null}, user_accounts.city),
@@ -251,6 +268,248 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       values (${userId}, 2026, 'predefined')
       on conflict do nothing
     `;
+
+    // Link startup if teamName provided
+    let startupId: string | null = null;
+    if (teamName && !isVolunteer) {
+      const [existingStartup] = await sql<{ id: string }[]>`
+        select id from startups where name_normalized = lower(regexp_replace(trim(${teamName}), '\\s+', ' ', 'g')) limit 1
+      `;
+      if (existingStartup) {
+        startupId = existingStartup.id;
+      } else {
+        const [newStartup] = await sql<{ id: string }[]>`
+          insert into startups (name, origin, created_by, city, state)
+          values (${teamName}, 'applicant', ${userId}, ${city || null}, ${state || null})
+          returning id
+        `;
+        startupId = newStartup?.id || null;
+      }
+
+      if (startupId) {
+        await sql`
+          insert into startup_memberships (startup_id, user_id, position)
+          values (${startupId}, ${userId}, ${role === 'startup_team_leader' ? 'leader' : 'member'})
+          on conflict (startup_id, user_id) do update set position = ${role === 'startup_team_leader' ? 'leader' : 'member'}
+        `;
+      }
+    }
+
+    // 1. Startup Team Leader registration details & team members
+    if (isStartupLeader) {
+      await sql`
+        insert into startup_team_leaders (
+          user_id, startup_id, team_name, full_name, email,
+          mobile, alt_mobile, domain, city, state, country,
+          linkedin_url, photo_url, edition_id
+        )
+        values (
+          ${userId}, ${startupId}, ${teamName}, ${fullName}, ${email},
+          ${mobile || null}, ${altMobile || null}, ${domain || null}, ${city || null}, ${state || null}, ${country || 'India'},
+          ${linkedinUrl || null}, ${photoUrl || null}, 2026
+        )
+        on conflict (user_id) do update set
+          startup_id = coalesce(${startupId}, startup_team_leaders.startup_id),
+          team_name = ${teamName},
+          full_name = ${fullName},
+          email = ${email},
+          mobile = coalesce(${mobile || null}, startup_team_leaders.mobile),
+          alt_mobile = coalesce(${altMobile || null}, startup_team_leaders.alt_mobile),
+          domain = coalesce(${domain || null}, startup_team_leaders.domain),
+          city = coalesce(${city || null}, startup_team_leaders.city),
+          state = coalesce(${state || null}, startup_team_leaders.state),
+          country = coalesce(${country || 'India'}, startup_team_leaders.country),
+          linkedin_url = coalesce(${linkedinUrl || null}, startup_team_leaders.linkedin_url),
+          photo_url = coalesce(${photoUrl || null}, startup_team_leaders.photo_url),
+          updated_at = now()
+      `;
+
+      if (members.length > 0) {
+        await sql`delete from startup_team_members where leader_user_id = ${userId}`;
+        for (const m of members) {
+          if (m && m.name && m.email) {
+            const memberEmail = m.email.toLowerCase().trim();
+            const memberAuthSub = `dev|${memberEmail}`;
+            const [memberUser] = await sql<{ id: string }[]>`
+              insert into user_accounts (
+                auth_subject, email, full_name, mobile_e164, status,
+                category, team_name, domain, city, state, country, photo_url
+              )
+              values (
+                ${memberAuthSub}, ${memberEmail}, ${m.name}, ${m.phone || null}, 'active',
+                'startup_team_member', ${teamName || null}, ${domain || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${m.photoUrl || null}
+              )
+              on conflict (lower(email)) where email is not null do update
+              set full_name = ${m.name},
+                  mobile_e164 = coalesce(${m.phone || null}, user_accounts.mobile_e164),
+                  category = 'startup_team_member',
+                  team_name = coalesce(${teamName || null}, user_accounts.team_name),
+                  domain = coalesce(${domain || null}, user_accounts.domain),
+                  photo_url = coalesce(${m.photoUrl || null}, user_accounts.photo_url),
+                  updated_at = now()
+              returning id
+            `;
+            const memberUserId = memberUser?.id || null;
+            if (memberUserId) {
+              await sql`
+                insert into role_grants (user_id, role, edition_id)
+                values (${memberUserId}, 'startup_team_member', 2026)
+                on conflict do nothing
+              `;
+              await sql`
+                insert into edition_access (user_id, edition_id, source)
+                values (${memberUserId}, 2026, 'predefined')
+                on conflict do nothing
+              `;
+              if (startupId) {
+                await sql`
+                  insert into startup_memberships (startup_id, user_id, position)
+                  values (${startupId}, ${memberUserId}, 'member')
+                  on conflict (startup_id, user_id) do update set position = 'member'
+                `;
+              }
+            }
+
+            await sql`
+              insert into startup_team_members (startup_id, leader_user_id, user_id, name, photo_url, phone, email)
+              values (
+                ${startupId},
+                ${userId},
+                ${memberUserId},
+                ${m.name},
+                ${m.photoUrl || null},
+                ${m.phone},
+                ${memberEmail}
+              )
+            `;
+          }
+        }
+      }
+    }
+
+    // 2. Student Innovator registration details & student team members
+    if (isStudentInnovator) {
+      const [innovator] = await sql<{ id: string }[]>`
+        insert into student_innovators (
+          user_id, startup_id, team_name, full_name, email,
+          mobile, alt_mobile, domain, city, state, country,
+          linkedin_url, photo_url, edition_id
+        )
+        values (
+          ${userId}, ${startupId}, ${teamName}, ${fullName}, ${email},
+          ${mobile || null}, ${altMobile || null}, ${domain || null}, ${city || null}, ${state || null}, ${country || 'India'},
+          ${linkedinUrl || null}, ${photoUrl || null}, 2026
+        )
+        on conflict (user_id) do update set
+          startup_id = coalesce(${startupId}, student_innovators.startup_id),
+          team_name = ${teamName},
+          full_name = ${fullName},
+          email = ${email},
+          mobile = coalesce(${mobile || null}, student_innovators.mobile),
+          alt_mobile = coalesce(${altMobile || null}, student_innovators.alt_mobile),
+          domain = coalesce(${domain || null}, student_innovators.domain),
+          city = coalesce(${city || null}, student_innovators.city),
+          state = coalesce(${state || null}, student_innovators.state),
+          country = coalesce(${country || 'India'}, student_innovators.country),
+          linkedin_url = coalesce(${linkedinUrl || null}, student_innovators.linkedin_url),
+          photo_url = coalesce(${photoUrl || null}, student_innovators.photo_url),
+          updated_at = now()
+        returning id
+      `;
+      const studentInnovatorId = innovator?.id || null;
+
+      if (members.length > 0) {
+        await sql`delete from student_team_members where leader_user_id = ${userId}`;
+        for (const m of members) {
+          if (m && m.name && m.email) {
+            const memberEmail = m.email.toLowerCase().trim();
+            const memberAuthSub = `dev|${memberEmail}`;
+            const [memberUser] = await sql<{ id: string }[]>`
+              insert into user_accounts (
+                auth_subject, email, full_name, mobile_e164, status,
+                category, team_name, domain, city, state, country, photo_url
+              )
+              values (
+                ${memberAuthSub}, ${memberEmail}, ${m.name}, ${m.phone || null}, 'active',
+                'student_innovator', ${teamName || null}, ${domain || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${m.photoUrl || null}
+              )
+              on conflict (lower(email)) where email is not null do update
+              set full_name = ${m.name},
+                  mobile_e164 = coalesce(${m.phone || null}, user_accounts.mobile_e164),
+                  category = 'student_innovator',
+                  team_name = coalesce(${teamName || null}, user_accounts.team_name),
+                  domain = coalesce(${domain || null}, user_accounts.domain),
+                  photo_url = coalesce(${m.photoUrl || null}, user_accounts.photo_url),
+                  updated_at = now()
+              returning id
+            `;
+            const memberUserId = memberUser?.id || null;
+            if (memberUserId) {
+              await sql`
+                insert into role_grants (user_id, role, edition_id)
+                values (${memberUserId}, 'startup_team_member', 2026)
+                on conflict do nothing
+              `;
+              await sql`
+                insert into edition_access (user_id, edition_id, source)
+                values (${memberUserId}, 2026, 'predefined')
+                on conflict do nothing
+              `;
+              if (startupId) {
+                await sql`
+                  insert into startup_memberships (startup_id, user_id, position)
+                  values (${startupId}, ${memberUserId}, 'member')
+                  on conflict (startup_id, user_id) do update set position = 'member'
+                `;
+              }
+            }
+
+            await sql`
+              insert into student_team_members (student_innovator_id, leader_user_id, user_id, team_name, name, photo_url, phone, email)
+              values (
+                ${studentInnovatorId},
+                ${userId},
+                ${memberUserId},
+                ${teamName || null},
+                ${m.name},
+                ${m.photoUrl || null},
+                ${m.phone},
+                ${memberEmail}
+              )
+            `;
+          }
+        }
+      }
+    }
+
+    // 3. Volunteer registration details
+    if (isVolunteer) {
+      await sql`
+        insert into volunteers (
+          user_id, full_name, email, mobile, alt_mobile, organisation_name,
+          redg_no, roll_no, city, state, country, linkedin_url, photo_url, edition_id
+        )
+        values (
+          ${userId}, ${fullName}, ${email}, ${mobile}, ${altMobile}, ${organisationName || teamName},
+          ${redgNo}, ${rollNo}, ${city}, ${state}, ${country || 'India'},
+          ${linkedinUrl || null}, ${photoUrl || null}, 2026
+        )
+        on conflict (user_id) do update set
+          full_name = ${fullName},
+          email = ${email},
+          mobile = ${mobile},
+          alt_mobile = ${altMobile},
+          organisation_name = ${organisationName || teamName},
+          redg_no = ${redgNo},
+          roll_no = ${rollNo},
+          city = ${city},
+          state = ${state},
+          country = ${country || 'India'},
+          linkedin_url = coalesce(${linkedinUrl || null}, volunteers.linkedin_url),
+          photo_url = coalesce(${photoUrl || null}, volunteers.photo_url),
+          updated_at = now()
+      `;
+    }
 
     if (password) {
       // update password hash

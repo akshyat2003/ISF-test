@@ -528,16 +528,111 @@ async function handler(request: Request) {
           alter table user_accounts add column if not exists state text;
           alter table user_accounts add column if not exists country text default 'India';
           alter table user_accounts add column if not exists linkedin_url text;
-          create table if not exists startup_team_members (
+
+          create table if not exists startup_team_leaders (
             id uuid primary key default gen_random_uuid(),
-            startup_id uuid references startups(id) on delete cascade,
+            user_id uuid not null references user_accounts(id) on delete cascade,
+            startup_id uuid references startups(id) on delete set null,
+            team_name text not null,
+            full_name text not null,
+            email text not null,
+            mobile text,
+            alt_mobile text,
+            domain text,
+            city text,
+            state text,
+            country text default 'India',
+            linkedin_url text,
+            photo_url text,
+            edition_id smallint default 2026,
+            created_at timestamptz not null default now(),
+            updated_at timestamptz not null default now(),
+            constraint uq_startup_team_leaders_user unique (user_id)
+          );
+          create index if not exists idx_startup_team_leaders_email on startup_team_leaders(lower(email));
+          create index if not exists idx_startup_team_leaders_startup on startup_team_leaders(startup_id);
+          alter table startup_team_leaders enable row level security;
+
+          create table if not exists volunteers (
+            id uuid primary key default gen_random_uuid(),
+            user_id uuid not null references user_accounts(id) on delete cascade,
+            full_name text not null,
+            email text not null,
+            mobile text not null,
+            alt_mobile text not null,
+            organisation_name text not null,
+            redg_no text not null,
+            roll_no text not null,
+            city text not null,
+            state text not null,
+            country text not null default 'India',
+            linkedin_url text,
+            photo_url text,
+            edition_id smallint default 2026,
+            created_at timestamptz not null default now(),
+            updated_at timestamptz not null default now(),
+            constraint uq_volunteers_user unique (user_id)
+          );
+          create index if not exists idx_volunteers_email on volunteers(lower(email));
+          create index if not exists idx_volunteers_redg_no on volunteers(redg_no);
+          alter table volunteers enable row level security;
+
+          create table if not exists student_innovators (
+            id uuid primary key default gen_random_uuid(),
+            user_id uuid not null references user_accounts(id) on delete cascade,
+            startup_id uuid references startups(id) on delete set null,
+            team_name text not null,
+            full_name text not null,
+            email text not null,
+            mobile text not null,
+            alt_mobile text not null,
+            domain text not null,
+            city text not null,
+            state text not null,
+            country text not null default 'India',
+            linkedin_url text,
+            photo_url text,
+            edition_id smallint default 2026,
+            created_at timestamptz not null default now(),
+            updated_at timestamptz not null default now(),
+            constraint uq_student_innovators_user unique (user_id)
+          );
+          create index if not exists idx_student_innovators_email on student_innovators(lower(email));
+          create index if not exists idx_student_innovators_startup on student_innovators(startup_id);
+          alter table student_innovators enable row level security;
+
+          create table if not exists student_team_members (
+            id uuid primary key default gen_random_uuid(),
+            student_innovator_id uuid references student_innovators(id) on delete cascade,
             leader_user_id uuid references user_accounts(id) on delete cascade,
+            user_id uuid references user_accounts(id) on delete cascade,
+            team_name text,
             name text not null,
             photo_url text,
             phone text not null,
             email text not null,
             created_at timestamptz not null default now()
           );
+          create index if not exists idx_student_team_members_leader on student_team_members(leader_user_id);
+          create index if not exists idx_student_team_members_innovator on student_team_members(student_innovator_id);
+          create index if not exists idx_student_team_members_user on student_team_members(user_id);
+          alter table student_team_members enable row level security;
+
+          create table if not exists startup_team_members (
+            id uuid primary key default gen_random_uuid(),
+            startup_id uuid references startups(id) on delete cascade,
+            leader_user_id uuid references user_accounts(id) on delete cascade,
+            user_id uuid references user_accounts(id) on delete cascade,
+            name text not null,
+            photo_url text,
+            phone text not null,
+            email text not null,
+            created_at timestamptz not null default now()
+          );
+          alter table startup_team_members add column if not exists user_id uuid references user_accounts(id) on delete cascade;
+          create index if not exists idx_startup_team_members_leader on startup_team_members(leader_user_id);
+          create index if not exists idx_startup_team_members_startup on startup_team_members(startup_id);
+          create index if not exists idx_startup_team_members_user on startup_team_members(user_id);
           alter table startup_team_members enable row level security;
         `);
       } catch (err) {
@@ -656,24 +751,224 @@ async function handler(request: Request) {
         }
       }
 
-      // Store individual team members in startup_team_members table
-      if (members.length > 0) {
-        await sql`delete from startup_team_members where leader_user_id = ${userId}`;
-        for (const m of members) {
-          if (m && m.name && m.email) {
-            await sql`
-              insert into startup_team_members (startup_id, leader_user_id, name, photo_url, phone, email)
-              values (
-                ${startupId},
-                ${userId},
-                ${m.name},
-                ${m.photoUrl || null},
-                ${m.phone},
-                ${m.email}
-              )
-            `;
+      // 1. Startup Team Leader registration details & team members
+      if (isStartupLeader) {
+        await sql`
+          insert into startup_team_leaders (
+            user_id, startup_id, team_name, full_name, email,
+            mobile, alt_mobile, domain, city, state, country,
+            linkedin_url, photo_url, edition_id
+          )
+          values (
+            ${userId}, ${startupId}, ${teamName}, ${fullName}, ${email},
+            ${mobile || null}, ${altMobile || null}, ${domain || null}, ${city || null}, ${state || null}, ${country || 'India'},
+            ${linkedinUrl || null}, ${storedLeaderPhoto || null}, 2026
+          )
+          on conflict (user_id) do update set
+            startup_id = coalesce(${startupId}, startup_team_leaders.startup_id),
+            team_name = ${teamName},
+            full_name = ${fullName},
+            email = ${email},
+            mobile = coalesce(${mobile || null}, startup_team_leaders.mobile),
+            alt_mobile = coalesce(${altMobile || null}, startup_team_leaders.alt_mobile),
+            domain = coalesce(${domain || null}, startup_team_leaders.domain),
+            city = coalesce(${city || null}, startup_team_leaders.city),
+            state = coalesce(${state || null}, startup_team_leaders.state),
+            country = coalesce(${country || 'India'}, startup_team_leaders.country),
+            linkedin_url = coalesce(${linkedinUrl || null}, startup_team_leaders.linkedin_url),
+            photo_url = coalesce(${storedLeaderPhoto || null}, startup_team_leaders.photo_url),
+            updated_at = now()
+        `;
+
+        // Store individual startup team members in startup_team_members AND ensure all members exist in user_accounts
+        if (members.length > 0) {
+          await sql`delete from startup_team_members where leader_user_id = ${userId}`;
+          for (const m of members) {
+            if (m && m.name && m.email) {
+              const memberEmail = m.email.toLowerCase().trim();
+              const memberAuthSub = `dev|${memberEmail}`;
+              // Save each team member in user_accounts
+              const [memberUser] = await sql`
+                insert into user_accounts (
+                  auth_subject, email, full_name, mobile_e164, status,
+                  category, team_name, domain, city, state, country, photo_url
+                )
+                values (
+                  ${memberAuthSub}, ${memberEmail}, ${m.name}, ${m.phone || null}, 'active',
+                  'startup_team_member', ${teamName || null}, ${domain || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${m.photoUrl || null}
+                )
+                on conflict (lower(email)) where email is not null do update
+                set full_name = ${m.name},
+                    mobile_e164 = coalesce(${m.phone || null}, user_accounts.mobile_e164),
+                    category = 'startup_team_member',
+                    team_name = coalesce(${teamName || null}, user_accounts.team_name),
+                    domain = coalesce(${domain || null}, user_accounts.domain),
+                    photo_url = coalesce(${m.photoUrl || null}, user_accounts.photo_url),
+                    updated_at = now()
+                returning id
+              `;
+              const memberUserId = memberUser?.id || null;
+              if (memberUserId) {
+                await sql`
+                  insert into role_grants (user_id, role, edition_id)
+                  values (${memberUserId}, 'startup_team_member', 2026)
+                  on conflict do nothing
+                `;
+                await sql`
+                  insert into edition_access (user_id, edition_id, source)
+                  values (${memberUserId}, 2026, 'predefined')
+                  on conflict do nothing
+                `;
+                if (startupId) {
+                  await sql`
+                    insert into startup_memberships (startup_id, user_id, position)
+                    values (${startupId}, ${memberUserId}, 'member')
+                    on conflict (startup_id, user_id) do update set position = 'member'
+                  `;
+                }
+              }
+
+              await sql`
+                insert into startup_team_members (startup_id, leader_user_id, user_id, name, photo_url, phone, email)
+                values (
+                  ${startupId},
+                  ${userId},
+                  ${memberUserId},
+                  ${m.name},
+                  ${m.photoUrl || null},
+                  ${m.phone},
+                  ${memberEmail}
+                )
+              `;
+            }
           }
         }
+      }
+
+      // 2. Student Innovator registration details & student team members
+      if (isStudentInnovator) {
+        const [innovator] = await sql`
+          insert into student_innovators (
+            user_id, startup_id, team_name, full_name, email,
+            mobile, alt_mobile, domain, city, state, country,
+            linkedin_url, photo_url, edition_id
+          )
+          values (
+            ${userId}, ${startupId}, ${teamName}, ${fullName}, ${email},
+            ${mobile || null}, ${altMobile || null}, ${domain || null}, ${city || null}, ${state || null}, ${country || 'India'},
+            ${linkedinUrl || null}, ${storedLeaderPhoto || null}, 2026
+          )
+          on conflict (user_id) do update set
+            startup_id = coalesce(${startupId}, student_innovators.startup_id),
+            team_name = ${teamName},
+            full_name = ${fullName},
+            email = ${email},
+            mobile = coalesce(${mobile || null}, student_innovators.mobile),
+            alt_mobile = coalesce(${altMobile || null}, student_innovators.alt_mobile),
+            domain = coalesce(${domain || null}, student_innovators.domain),
+            city = coalesce(${city || null}, student_innovators.city),
+            state = coalesce(${state || null}, student_innovators.state),
+            country = coalesce(${country || 'India'}, student_innovators.country),
+            linkedin_url = coalesce(${linkedinUrl || null}, student_innovators.linkedin_url),
+            photo_url = coalesce(${storedLeaderPhoto || null}, student_innovators.photo_url),
+            updated_at = now()
+          returning id
+        `;
+        const studentInnovatorId = innovator?.id || null;
+
+        // Store individual student team members in student_team_members AND ensure all members exist in user_accounts
+        if (members.length > 0) {
+          await sql`delete from student_team_members where leader_user_id = ${userId}`;
+          for (const m of members) {
+            if (m && m.name && m.email) {
+              const memberEmail = m.email.toLowerCase().trim();
+              const memberAuthSub = `dev|${memberEmail}`;
+              // Save each student member in user_accounts
+              const [memberUser] = await sql`
+                insert into user_accounts (
+                  auth_subject, email, full_name, mobile_e164, status,
+                  category, team_name, domain, city, state, country, photo_url
+                )
+                values (
+                  ${memberAuthSub}, ${memberEmail}, ${m.name}, ${m.phone || null}, 'active',
+                  'student_innovator', ${teamName || null}, ${domain || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${m.photoUrl || null}
+                )
+                on conflict (lower(email)) where email is not null do update
+                set full_name = ${m.name},
+                    mobile_e164 = coalesce(${m.phone || null}, user_accounts.mobile_e164),
+                    category = 'student_innovator',
+                    team_name = coalesce(${teamName || null}, user_accounts.team_name),
+                    domain = coalesce(${domain || null}, user_accounts.domain),
+                    photo_url = coalesce(${m.photoUrl || null}, user_accounts.photo_url),
+                    updated_at = now()
+                returning id
+              `;
+              const memberUserId = memberUser?.id || null;
+              if (memberUserId) {
+                await sql`
+                  insert into role_grants (user_id, role, edition_id)
+                  values (${memberUserId}, 'startup_team_member', 2026)
+                  on conflict do nothing
+                `;
+                await sql`
+                  insert into edition_access (user_id, edition_id, source)
+                  values (${memberUserId}, 2026, 'predefined')
+                  on conflict do nothing
+                `;
+                if (startupId) {
+                  await sql`
+                    insert into startup_memberships (startup_id, user_id, position)
+                    values (${startupId}, ${memberUserId}, 'member')
+                    on conflict (startup_id, user_id) do update set position = 'member'
+                  `;
+                }
+              }
+
+              await sql`
+                insert into student_team_members (student_innovator_id, leader_user_id, user_id, team_name, name, photo_url, phone, email)
+                values (
+                  ${studentInnovatorId},
+                  ${userId},
+                  ${memberUserId},
+                  ${teamName || null},
+                  ${m.name},
+                  ${m.photoUrl || null},
+                  ${m.phone},
+                  ${memberEmail}
+                )
+              `;
+            }
+          }
+        }
+      }
+
+      // 3. Volunteer registration details
+      if (isVolunteer) {
+        await sql`
+          insert into volunteers (
+            user_id, full_name, email, mobile, alt_mobile, organisation_name,
+            redg_no, roll_no, city, state, country, linkedin_url, photo_url, edition_id
+          )
+          values (
+            ${userId}, ${fullName}, ${email}, ${mobile}, ${altMobile}, ${organisationName || teamName},
+            ${redgNo}, ${rollNo}, ${city}, ${state}, ${country || 'India'},
+            ${linkedinUrl || null}, ${storedLeaderPhoto || null}, 2026
+          )
+          on conflict (user_id) do update set
+            full_name = ${fullName},
+            email = ${email},
+            mobile = ${mobile},
+            alt_mobile = ${altMobile},
+            organisation_name = ${organisationName || teamName},
+            redg_no = ${redgNo},
+            roll_no = ${rollNo},
+            city = ${city},
+            state = ${state},
+            country = ${country || 'India'},
+            linkedin_url = coalesce(${linkedinUrl || null}, volunteers.linkedin_url),
+            photo_url = coalesce(${storedLeaderPhoto || null}, volunteers.photo_url),
+            updated_at = now()
+        `;
       }
 
       // Generate JWT session token
@@ -957,6 +1252,10 @@ async function handler(request: Request) {
           state: user?.state || "",
           country: user?.country || "",
           linkedinUrl: user?.linkedin_url || "",
+          redgNo: user?.redg_no || "",
+          rollNo: user?.roll_no || "",
+          organisationName: user?.organisation_name || "",
+          photoUrl: user?.photo_url || "",
         },
         roles,
         editionAccess: [2026],
