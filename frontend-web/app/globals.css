@@ -66,7 +66,12 @@ body {
   margin: 0;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg);
+  background-color: #f7f9fa;
+  background-image: url("/bg.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-sans);
 }
@@ -84,8 +89,10 @@ p { margin: 0 0 1em; }
 .container { max-width: 1200px; width: 100%; margin: 0 auto; padding: 0 20px; }
 .header-container { max-width: 1360px; width: 100%; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 62px; }
 .site-header {
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-ivory-header);
+  border-bottom: 1px solid rgba(232, 223, 211, 0.7);
+  background: rgba(250, 247, 242, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   position: sticky;
   top: 0;
   z-index: 100;

@@ -14,7 +14,6 @@ interface CategoryMeta {
   id: CategoryId;
   title: string;
   badge: string;
-  icon: string;
   trackCode: string;
   desc: string;
   teamLabel: string;
@@ -24,7 +23,7 @@ interface CategoryMeta {
   borderColor: string;
   tag: string;
   passType: string;
-  perks: Array<{ icon: string; title: string; desc: string }>;
+  perks: Array<{ title: string; desc: string }>;
 }
 
 const CATEGORIES: CategoryMeta[] = [
@@ -32,7 +31,6 @@ const CATEGORIES: CategoryMeta[] = [
     id: "startup_founder",
     title: "Startup Leader",
     badge: "Startup Founders & Co-Founders",
-    icon: "🚀",
     trackCode: "Track 01",
     desc: "Founders & startups with market-ready products, MVPs, or high-growth ventures seeking seed funding, angel roundtables & GCC connects.",
     teamLabel: "Startup / Company Name",
@@ -44,17 +42,14 @@ const CATEGORIES: CategoryMeta[] = [
     passType: "FOUNDER · VIP ALL-ACCESS",
     perks: [
       {
-        icon: "💼",
         title: "₹1 Cr+ Pitch & Seed Arena",
         desc: "Compete for equity-free grants and venture incubation fast-track.",
       },
       {
-        icon: "🤝",
         title: "1-on-1 VC Speed Dating",
         desc: "Private pitch slots with 50+ tier-1 institutional & angel funds.",
       },
       {
-        icon: "🎪",
         title: "Exhibition Demo Kiosk & VIP Pass",
         desc: "Dedicated demo table in Startup Expo + access to founder networking dinners.",
       },
@@ -64,7 +59,6 @@ const CATEGORIES: CategoryMeta[] = [
     id: "student_innovator",
     title: "Student Innovator",
     badge: "Student Innovators & College Labs",
-    icon: "🎓",
     trackCode: "Track 02",
     desc: "Undergraduates, researchers & college teams showcasing working hardware/software tech prototypes, robotics, or scientific innovations.",
     teamLabel: "Project / Team Name",
@@ -76,17 +70,14 @@ const CATEGORIES: CategoryMeta[] = [
     passType: "INNOVATOR · PROTOTYPE PASS",
     perks: [
       {
-        icon: "🔬",
         title: "Prototype Demo Desk",
         desc: "Showcase working hardware & software prototypes to premier juries.",
       },
       {
-        icon: "💡",
         title: "Student Idea Grants",
         desc: "Eligible for prototype improvement grants, patent advice & fab lab access.",
       },
       {
-        icon: "⚡",
         title: "Founder Mentorship Track",
         desc: "Masterclasses with serial tech founders, unicorn builders & industry chiefs.",
       },
@@ -96,7 +87,6 @@ const CATEGORIES: CategoryMeta[] = [
     id: "volunteer",
     title: "Summit Volunteer",
     badge: "Campus & Youth Volunteers",
-    icon: "🤝",
     trackCode: "Track 03",
     desc: "Individual student leaders & youth volunteers for summit coordination, VIP relations, venue operations & logistics management.",
     teamLabel: "Institution / Organisation Name",
@@ -108,17 +98,14 @@ const CATEGORIES: CategoryMeta[] = [
     passType: "VOLUNTEER · ORGANIZING TEAM",
     perks: [
       {
-        icon: "🏅",
         title: "Official Leadership Certificate",
         desc: "Official commendation issued jointly by GIET University & ISF Network.",
       },
       {
-        icon: "🎟️",
         title: "All-Access 3-Day Summit Pass",
         desc: "Full access to grand keynote arenas, investor panels & fireside sessions.",
       },
       {
-        icon: "🎒",
         title: "Summit Delegate Kit & Meals",
         desc: "Official volunteer kit, branded t-shirt, custom lanyard badge & catered meals.",
       },
@@ -301,7 +288,7 @@ export default function RegisterPage() {
     if (points <= 1) return { level: 1, label: "Weak (add numbers/symbols)", color: "#c25022" };
     if (points === 2) return { level: 2, label: "Fair (acceptable)", color: "#d6b25e" };
     if (points === 3) return { level: 3, label: "Good security", color: "#256f57" };
-    return { level: 4, label: "Strong & Accredited ✓", color: "#143e30" };
+    return { level: 4, label: "Strong & Accredited", color: "#143e30" };
   }, [password]);
 
   // Lead photo upload handler
@@ -740,7 +727,11 @@ export default function RegisterPage() {
         `}</style>
 
         <div className="success-badge-card">
-          <div className="check-icon-circle">✓</div>
+          <div className="check-icon-circle">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
           {registered.leadPhoto && (
             <img
               src={registered.leadPhoto}
@@ -754,8 +745,7 @@ export default function RegisterPage() {
           </p>
 
           <div className="status-ribbon">
-            <span>🎟️</span>
-            <span>Accredited Pass: <strong>{activeCategory.passType}</strong> · 18–20 Dec 2026</span>
+            <span>Pass Type: <strong>{activeCategory.passType}</strong> · 18–20 Dec 2026</span>
           </div>
 
           <div className="info-table-box">
@@ -829,7 +819,7 @@ export default function RegisterPage() {
                               style={{ width: 30, height: 30, borderRadius: 6, objectFit: "cover" }}
                             />
                           ) : (
-                            "📷"
+                            <span style={{ fontSize: 10, color: "#a8a29e", fontWeight: 600 }}>N/A</span>
                           )}
                         </td>
                         <td style={{ fontWeight: 600 }}>{m.name}</td>
@@ -845,7 +835,10 @@ export default function RegisterPage() {
 
           <div style={{ background: "#faf7f2", border: "1.5px solid #e8dfd3", borderRadius: 16, padding: "16px 20px", marginBottom: 24, textAlign: "left" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <span style={{ fontSize: 20 }}>🔐</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1c1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
               <strong style={{ color: "#1c1917", fontSize: 14.5 }}>Next Step: Sign In with Registered Credentials</strong>
             </div>
             <p style={{ margin: 0, fontSize: 13.5, color: "#57534e", lineHeight: 1.5 }}>
@@ -870,207 +863,83 @@ export default function RegisterPage() {
           width: 100%;
         }
 
-        /* Hero Banner Section (matches jathara.netlify.app hero) */
+        /* Hero Banner Section */
         .summit-hero-banner {
           position: relative;
-          color: #fcfbf8;
-          padding: 44px 20px 48px;
-          overflow: hidden;
-          background: #0c0d12;
-          border-bottom: 1px solid #232733;
+          padding: 48px 20px 32px;
           text-align: center;
-        }
-        .hero-backdrop-img {
-          position: absolute;
-          inset: 0;
-          z-index: 0;
-          opacity: 0.35;
-          object-fit: cover;
-          object-position: center 38%;
-          width: 100%;
-          height: 100%;
-          pointer-events: none;
-        }
-        .hero-glow-orb {
-          position: absolute;
-          top: -100px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 650px;
-          height: 350px;
-          background: rgba(249, 115, 22, 0.12);
-          border-radius: 50%;
-          filter: blur(140px);
-          pointer-events: none;
-          z-index: 1;
+          max-width: 960px;
+          margin: 0 auto;
         }
         .hero-content {
           position: relative;
           z-index: 10;
-          max-width: 940px;
+          max-width: 860px;
           margin: 0 auto;
         }
         .hero-eyebrow-pill {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          backdrop-filter: blur(8px);
-          padding: 5px 16px;
+          background: rgba(255, 255, 255, 0.88);
+          border: 1px solid rgba(226, 222, 214, 0.9);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          padding: 6px 18px;
           border-radius: 999px;
           font-family: var(--font-mono);
           font-size: 11.5px;
           font-weight: 700;
-          letter-spacing: 0.06em;
+          letter-spacing: 0.05em;
           text-transform: uppercase;
-          color: #f7c89f;
-          margin-bottom: 14px;
+          color: #143e30;
+          margin-bottom: 16px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
         }
         .hero-h1 {
           font-family: var(--font-serif);
-          font-size: clamp(28px, 5.2vw, 50px);
+          font-size: clamp(28px, 4.8vw, 44px);
           font-weight: 900;
-          color: #ffffff;
+          color: #1c1917;
           letter-spacing: -0.025em;
-          line-height: 1.1;
+          line-height: 1.15;
           margin: 0 0 10px;
-          text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
         }
-        .hero-gradient-text {
-          background: linear-gradient(to right, #ffedd5 0%, #f7c89f 50%, #e87042 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
+        .hero-terracotta {
+          color: #e87042;
         }
         .hero-tagline {
           font-family: var(--font-serif);
-          font-size: clamp(16px, 2.5vw, 22px);
+          font-size: clamp(16px, 2.2vw, 20px);
           font-weight: 600;
-          color: #ffedd5;
-          margin: 0 0 12px;
+          color: #143e30;
+          margin: 0 0 10px;
         }
         .hero-lead {
           font-size: 14px;
-          color: #d6d0c7;
-          max-width: 680px;
-          margin: 0 auto 24px;
-          line-height: 1.6;
-        }
-
-        /* 4 Summit Stats Row (Netlify exact) */
-        .summit-stats-bar {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 12px;
-          padding-top: 20px;
-          border-top: 1px solid rgba(255, 255, 255, 0.15);
-          max-width: 820px;
-          margin: 0 auto 20px;
-        }
-        .stat-item {
-          padding: 6px;
-          text-align: center;
-        }
-        .stat-num {
-          font-family: var(--font-serif);
-          font-weight: 900;
-          font-size: clamp(20px, 3vw, 28px);
-          color: #ffffff;
-          display: block;
-          line-height: 1;
-        }
-        .stat-label {
-          font-size: 11.5px;
-          color: #a8a29e;
-          font-weight: 500;
-          margin-top: 4px;
-          display: block;
-        }
-
-        /* Aegis Partners Banner (Netlify exact) */
-        .aegis-section {
-          padding-top: 18px;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
-          max-width: 840px;
+          color: #57534e;
+          max-width: 660px;
           margin: 0 auto;
-        }
-        .aegis-label {
-          font-size: 10.5px;
-          font-weight: 700;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #a8a29e;
-          margin-bottom: 12px;
-          display: block;
-        }
-        .aegis-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 12px;
-        }
-        .aegis-card {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 14px;
-          border-radius: 14px;
-          background: rgba(20, 22, 32, 0.85);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          text-align: left;
-          text-decoration: none;
-        }
-        .aegis-img-box {
-          width: 38px;
-          height: 38px;
-          border-radius: 10px;
-          background: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 4px;
-          flex-shrink: 0;
-        }
-        .aegis-img {
-          max-width: 100%;
-          max-height: 100%;
-          object-fit: contain;
-        }
-        .aegis-role {
-          font-size: 9.5px;
-          font-weight: 800;
-          color: #e87042;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          display: block;
-        }
-        .aegis-name {
-          font-size: 12.5px;
-          font-weight: 700;
-          color: #ffffff;
-          display: block;
-          line-height: 1.2;
-        }
-        .aegis-sub {
-          font-size: 10.5px;
-          color: #94a3b8;
-          display: block;
+          line-height: 1.6;
         }
 
         /* Main Registration Container */
         .portal-form-container {
           max-width: 1140px;
-          margin: -24px auto 60px;
+          margin: 20px auto 60px;
           padding: 0 16px;
           position: relative;
           z-index: 20;
         }
 
         .portal-card-main {
-          background: #ffffff;
+          background: rgba(255, 255, 255, 0.9);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
           border-radius: 28px;
           padding: 36px 32px;
-          border: 1px solid #e4dcce;
-          box-shadow: 0 20px 48px -12px rgba(20, 62, 48, 0.1), 0 1px 3px rgba(0, 0, 0, 0.04);
+          border: 1px solid rgba(228, 220, 206, 0.85);
+          box-shadow: 0 20px 48px -12px rgba(20, 62, 48, 0.07), 0 1px 3px rgba(0, 0, 0, 0.03);
         }
 
         /* Progress Completion Bar */
@@ -1203,18 +1072,26 @@ export default function RegisterPage() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 16px;
+          margin-bottom: 14px;
         }
-        .track-icon-box {
-          width: 48px;
-          height: 48px;
-          border-radius: 16px;
+        .track-index-pill {
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          background: #faf7f2;
+          color: #103327;
+          border: 1px solid #e8dfd3;
+          font-family: var(--font-mono);
+          font-size: 12px;
+          font-weight: 800;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 24px;
+        }
+        .track-card.active .track-index-pill {
+          background: var(--active-border);
           color: #ffffff;
-          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+          border-color: var(--active-border);
         }
         .track-code-pill {
           font-family: var(--font-mono);
@@ -1243,7 +1120,7 @@ export default function RegisterPage() {
           font-size: 11.5px;
           font-weight: 700;
           color: #e87042;
-          margin: 0 0 10px;
+          margin: 0 0 8px;
         }
         .track-desc {
           font-size: 12.5px;
@@ -1268,7 +1145,7 @@ export default function RegisterPage() {
           background: #ffffff;
         }
 
-        /* Track Dynamic Perks Matrix (3 Netlify style boxes) */
+        /* Track Dynamic Perks Matrix (Clean Minimal Numbered Cards) */
         .perks-strip-matrix {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
@@ -1276,29 +1153,33 @@ export default function RegisterPage() {
           margin-bottom: 30px;
           padding: 16px;
           border-radius: 20px;
-          background: #faf7f2;
-          border: 1.5px dashed #dfd6c4;
+          background: rgba(250, 247, 242, 0.75);
+          border: 1px solid rgba(223, 214, 196, 0.8);
+          backdrop-filter: blur(8px);
         }
         .perk-card-box {
-          background: #ffffff;
+          background: rgba(255, 255, 255, 0.92);
           border-radius: 14px;
           padding: 14px 16px;
-          border: 1px solid #e8dfd3;
+          border: 1px solid rgba(232, 223, 211, 0.9);
           display: flex;
           gap: 12px;
           align-items: flex-start;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
         }
-        .perk-icon-circle {
-          width: 38px;
-          height: 38px;
-          border-radius: 10px;
+        .perk-number-badge {
+          width: 26px;
+          height: 26px;
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 18px;
+          font-size: 11px;
+          font-weight: 800;
           flex-shrink: 0;
           background: #faeee8;
+          color: #c25022;
+          font-family: var(--font-mono);
         }
         .perk-text-wrap h4 {
           margin: 0 0 3px;
@@ -1322,9 +1203,10 @@ export default function RegisterPage() {
           align-items: start;
         }
 
-        /* Form Subcards */
+        /* Form Subcards (Frosted Glass) */
         .form-panel-card {
-          background: #ffffff;
+          background: rgba(255, 255, 255, 0.92);
+          backdrop-filter: blur(10px);
           border: 1px solid #e8dfd3;
           border-radius: 20px;
           padding: 24px;
@@ -1355,7 +1237,7 @@ export default function RegisterPage() {
           color: #1c1917;
         }
 
-        /* Inputs & Form Groups */
+        /* Inputs & Form Groups (Clean minimal styling) */
         .form-grid-fields {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1385,23 +1267,17 @@ export default function RegisterPage() {
           position: relative;
           display: flex;
           align-items: center;
-        }
-        .field-icon-prefix {
-          position: absolute;
-          left: 12px;
-          font-size: 16px;
-          pointer-events: none;
-          color: #78716c;
+          width: 100%;
         }
         .input-text-ctrl {
           width: 100%;
-          padding: 10px 14px 10px 38px;
+          padding: 11px 14px;
           border-radius: 12px;
           border: 1.5px solid #dfd6c4;
           font-size: 13.5px;
           color: #1c1917;
           outline: none;
-          background: #ffffff;
+          background: rgba(255, 255, 255, 0.96);
           transition: border-color 0.2s ease, box-shadow 0.2s ease;
           box-sizing: border-box;
           font-family: var(--font-sans);
@@ -1447,11 +1323,12 @@ export default function RegisterPage() {
 
         /* Live Summit Pass Badge Mockup (Right Column) */
         .live-badge-container {
-          background: linear-gradient(150deg, #ffffff 0%, #faf7f2 100%);
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(12px);
           border: 2px solid #dfd6c4;
           border-radius: 24px;
           padding: 22px 18px;
-          box-shadow: 0 14px 34px -8px rgba(20, 62, 48, 0.1);
+          box-shadow: 0 14px 34px -8px rgba(20, 62, 48, 0.08);
           text-align: center;
           position: sticky;
           top: 80px;
@@ -1568,7 +1445,8 @@ export default function RegisterPage() {
           margin-bottom: 24px;
         }
         .member-form-card {
-          background: #ffffff;
+          background: rgba(255, 255, 255, 0.92);
+          backdrop-filter: blur(10px);
           border: 1.5px solid #e8dfd3;
           border-radius: 18px;
           padding: 20px;
@@ -1667,7 +1545,8 @@ export default function RegisterPage() {
 
         /* Trust & Security Banner */
         .trust-seal-box {
-          background: #f2f7f4;
+          background: rgba(242, 247, 244, 0.85);
+          backdrop-filter: blur(8px);
           border: 1px solid #c8d1cd;
           border-radius: 16px;
           padding: 14px 18px;
@@ -1675,10 +1554,6 @@ export default function RegisterPage() {
           align-items: center;
           gap: 14px;
           margin: 18px 0 24px;
-        }
-        .trust-seal-icon {
-          font-size: 22px;
-          flex-shrink: 0;
         }
         .trust-seal-head {
           font-family: var(--font-serif);
@@ -1759,29 +1634,21 @@ export default function RegisterPage() {
             max-width: 320px;
             margin: 0 auto 24px;
           }
-          .tracks-grid, .summit-stats-bar, .perks-strip-matrix, .aegis-grid {
+          .tracks-grid, .perks-strip-matrix {
             grid-template-columns: 1fr;
           }
         }
       `}</style>
 
-      {/* Hero Header Section (matches jathara.netlify.app) */}
+      {/* Hero Header Section */}
       <section className="summit-hero-banner" aria-label="Summit Introduction and Official Accreditation">
-        <img
-          src="/images/hero-junicorn-summit.jpeg"
-          alt="ISF Summit Delegation"
-          className="hero-backdrop-img"
-        />
-        <div className="hero-glow-orb" aria-hidden="true" />
-
         <div className="hero-content">
           <div className="hero-eyebrow-pill">
-            <span>📍</span>
-            <span>GIET University · Gunupur, Odisha · 18–20 December 2026</span>
+            GIET University · Gunupur, Odisha · 18–20 December 2026
           </div>
 
           <h1 className="hero-h1">
-            ISF STARTUP JATHARA <span className="hero-gradient-text">2026</span>
+            ISF STARTUP JATHARA <span className="hero-terracotta">2026</span>
           </h1>
 
           <p className="hero-tagline">Where Grassroots Bharat Meets Venture Capital.</p>
@@ -1789,101 +1656,6 @@ export default function RegisterPage() {
           <p className="hero-lead">
             Official Summit Accreditation & Registration Portal for startup leaders, student innovators & volunteers. Pitch in ₹1 Cr+ grant arenas, meet 50+ tier-1 VCs & GCC leaders, and secure your official summit pass.
           </p>
-
-          {/* 4 Summit Stats Row (Netlify exact) */}
-          <div className="summit-stats-bar">
-            <div className="stat-item">
-              <span className="stat-num">2,000+</span>
-              <span className="stat-label">Delegates & Attendees</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-num" style={{ color: "#f7c89f" }}>100+</span>
-              <span className="stat-label">Startups Pitching</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-num" style={{ color: "#e87042" }}>50+</span>
-              <span className="stat-label">VCs, Angels & Mentors</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-num" style={{ color: "#d6b25e" }}>₹1 Cr+</span>
-              <span className="stat-label">Seed Grants & Pitch Pool</span>
-            </div>
-          </div>
-
-          {/* Convened Under the Aegis Of (Organizers Showcase) */}
-          <div className="aegis-section">
-            <span className="aegis-label">Convened Under the Aegis Of</span>
-            <div className="aegis-grid">
-              <a
-                href="https://www.isfnetwork.org"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="aegis-card"
-                aria-label="ISF Network - Organizer"
-              >
-                <div className="aegis-img-box">
-                  <Image
-                    src="/logos/isf-logo.webp"
-                    alt="ISF"
-                    width={32}
-                    height={32}
-                    className="aegis-img"
-                  />
-                </div>
-                <div>
-                  <span className="aegis-role">Organizer</span>
-                  <span className="aegis-name">ISF Network</span>
-                  <span className="aegis-sub">International Startup Foundation</span>
-                </div>
-              </a>
-
-              <a
-                href="https://www.giet.edu"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="aegis-card"
-                aria-label="GIET University - Host Institution"
-              >
-                <div className="aegis-img-box">
-                  <Image
-                    src="/logos/giet-logo.png"
-                    alt="GIET University"
-                    width={32}
-                    height={32}
-                    className="aegis-img"
-                  />
-                </div>
-                <div>
-                  <span className="aegis-role">Host Campus</span>
-                  <span className="aegis-name">GIET University</span>
-                  <span className="aegis-sub">Gunupur, Odisha</span>
-                </div>
-              </a>
-
-              <a
-                href="https://www.incubationx.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="aegis-card"
-                aria-label="IncubateX - Innovation Partner"
-              >
-                <div className="aegis-img-box">
-                  <Image
-                    src="/logos/incubatex-logo.png"
-                    alt="IncubateX"
-                    width={32}
-                    height={32}
-                    className="aegis-img"
-                  />
-                </div>
-                <div>
-                  <span className="aegis-role">Innovation Partner</span>
-                  <span className="aegis-name">IncubateX</span>
-                  <span className="aegis-sub">Incubation Foundation</span>
-                </div>
-              </a>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1902,13 +1674,17 @@ export default function RegisterPage() {
               </div>
             </div>
             <span className="progress-chip">
-              {progressPercent >= 100 ? "Ready to Submit ✓" : `${100 - progressPercent}% Remaining`}
+              {progressPercent >= 100 ? "Ready to Submit" : `${100 - progressPercent}% Remaining`}
             </span>
           </div>
 
           {error && (
             <div className="error-alert-box" role="alert">
-              <span style={{ fontSize: 20 }}>⚠️</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c25022" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
               <span>{error}</span>
             </div>
           )}
@@ -1917,13 +1693,13 @@ export default function RegisterPage() {
             {/* STEP 1: Accreditation Track Selection */}
             <div className="step-heading-bar">
               <span className="step-heading-title">
-                <span>🎯</span> Step 1 · Choose Your Accreditation Track
+                Step 1 · Choose Accreditation Track
               </span>
               <span className="step-tag-pill">Role Selection</span>
             </div>
 
             <div className="tracks-grid">
-              {CATEGORIES.map((cat) => {
+              {CATEGORIES.map((cat, idx) => {
                 const isSelected = category === cat.id;
                 return (
                   <div
@@ -1942,11 +1718,9 @@ export default function RegisterPage() {
                   >
                     <div>
                       <div className="track-top-row">
-                        <div className="track-icon-box" style={{ background: cat.themeColor }}>
-                          {cat.icon}
-                        </div>
+                        <span className="track-index-pill">0{idx + 1}</span>
                         <span className="track-code-pill">
-                          {isSelected ? `${cat.trackCode} ✓` : cat.trackCode}
+                          {isSelected ? `${cat.trackCode} · Selected` : cat.trackCode}
                         </span>
                       </div>
                       <h3 className="track-title">{cat.title}</h3>
@@ -1963,7 +1737,7 @@ export default function RegisterPage() {
             <div className="perks-strip-matrix">
               {activeCategory.perks.map((p, idx) => (
                 <div key={idx} className="perk-card-box">
-                  <div className="perk-icon-circle">{p.icon}</div>
+                  <span className="perk-number-badge">0{idx + 1}</span>
                   <div className="perk-text-wrap">
                     <h4>{p.title}</h4>
                     <p>{p.desc}</p>
@@ -1975,7 +1749,7 @@ export default function RegisterPage() {
             {/* STEP 2: Profile Credentials + Real-Time Badge Mockup */}
             <div className="step-heading-bar">
               <span className="step-heading-title">
-                <span>📝</span> Step 2 · {isVolunteer ? "Volunteer Profile & Student ID" : isStudentInnovator ? "Project & Team Lead Credentials" : "Lead Founder & Venture Credentials"}
+                Step 2 · {isVolunteer ? "Volunteer Profile & Student ID" : isStudentInnovator ? "Project & Team Lead Credentials" : "Lead Founder & Venture Credentials"}
               </span>
               <span className="step-tag-pill">Identity & Pass</span>
             </div>
@@ -1986,7 +1760,7 @@ export default function RegisterPage() {
                 {/* Subcard 1: Organization & Identity */}
                 <div className="form-panel-card">
                   <div className="panel-heading">
-                    <span className="panel-badge">🏢 Organization & Identity</span>
+                    <span className="panel-badge">Organization & Identity</span>
                     <span className="panel-title">Institutional details</span>
                   </div>
 
@@ -1996,7 +1770,6 @@ export default function RegisterPage() {
                         <span>{isVolunteer ? "Organisation Name" : activeCategory.teamLabel} <span className="field-req-mark">*</span></span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">🏢</span>
                         <input
                           id="teamName"
                           className="input-text-ctrl"
@@ -2020,7 +1793,6 @@ export default function RegisterPage() {
                         <span>{isVolunteer ? "Volunteer Full Name" : "Team Lead Full Name"} <span className="field-req-mark">*</span></span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">👤</span>
                         <input
                           id="fullName"
                           className="input-text-ctrl"
@@ -2040,7 +1812,6 @@ export default function RegisterPage() {
                             <span>Registration No (Redg No) <span className="field-req-mark">*</span></span>
                           </label>
                           <div className="input-icon-wrapper">
-                            <span className="field-icon-prefix">🆔</span>
                             <input
                               id="redgNo"
                               className="input-text-ctrl"
@@ -2058,7 +1829,6 @@ export default function RegisterPage() {
                             <span>Roll Number / Student ID <span className="field-req-mark">*</span></span>
                           </label>
                           <div className="input-icon-wrapper">
-                            <span className="field-icon-prefix">🎓</span>
                             <input
                               id="rollNo"
                               className="input-text-ctrl"
@@ -2079,7 +1849,6 @@ export default function RegisterPage() {
                           <span>Focus Sector <span className="field-req-mark">*</span></span>
                         </label>
                         <div className="input-icon-wrapper">
-                          <span className="field-icon-prefix">🏷️</span>
                           <select
                             id="domain"
                             className="input-text-ctrl"
@@ -2102,8 +1871,8 @@ export default function RegisterPage() {
                 {/* Subcard 2: Contact & Authentication Credentials */}
                 <div className="form-panel-card">
                   <div className="panel-heading">
-                    <span className="panel-badge">🔐 Contact & Authentication</span>
-                    <span className="panel-title">Account credentials & communications</span>
+                    <span className="panel-badge">Contact & Account Credentials</span>
+                    <span className="panel-title">Credentials & communications</span>
                   </div>
 
                   <div className="form-grid-fields">
@@ -2112,7 +1881,6 @@ export default function RegisterPage() {
                         <span>Official Email Address <span className="field-req-mark">*</span></span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">✉️</span>
                         <input
                           id="email"
                           className="input-text-ctrl"
@@ -2130,7 +1898,6 @@ export default function RegisterPage() {
                         <span>Create Account Password <span className="field-req-mark">*</span></span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">🔒</span>
                         <input
                           id="password"
                           className="input-text-ctrl"
@@ -2175,7 +1942,6 @@ export default function RegisterPage() {
                         <span>Primary Mobile (WhatsApp) <span className="field-req-mark">*</span></span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">📱</span>
                         <input
                           id="mobile"
                           className="input-text-ctrl"
@@ -2202,7 +1968,6 @@ export default function RegisterPage() {
                         <span>Alternate Phone Number <span className="field-req-mark">*</span></span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">📞</span>
                         <input
                           id="altMobile"
                           className="input-text-ctrl"
@@ -2226,7 +1991,6 @@ export default function RegisterPage() {
                         <span>City <span className="field-req-mark">*</span></span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">📍</span>
                         <input
                           id="city"
                           className="input-text-ctrl"
@@ -2244,7 +2008,6 @@ export default function RegisterPage() {
                         <span>State <span className="field-req-mark">*</span></span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">🗺️</span>
                         <input
                           id="state"
                           className="input-text-ctrl"
@@ -2262,7 +2025,6 @@ export default function RegisterPage() {
                         <span>Country <span className="field-req-mark">*</span></span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">🌍</span>
                         <input
                           id="country"
                           className="input-text-ctrl"
@@ -2279,7 +2041,6 @@ export default function RegisterPage() {
                         <span>LinkedIn Profile / URL {isStartupOrInnovator && <span className="field-req-mark">*</span>}</span>
                       </label>
                       <div className="input-icon-wrapper">
-                        <span className="field-icon-prefix">🔗</span>
                         <input
                           id="linkedinUrl"
                           className="input-text-ctrl"
@@ -2336,7 +2097,10 @@ export default function RegisterPage() {
                       <img src={leadPhoto} alt="Attendee" className="badge-photo-render" />
                     ) : (
                       <div style={{ textAlign: "center", padding: 8 }}>
-                        <span style={{ fontSize: 26 }}>📷</span>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#78716c" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto" }}>
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                          <circle cx="12" cy="13" r="4" />
+                        </svg>
                         <span style={{ fontSize: 10, display: "block", color: "#78716c", marginTop: 4, fontWeight: 700 }}>
                           Upload Pass Photo *
                         </span>
@@ -2377,7 +2141,7 @@ export default function RegisterPage() {
               <>
                 <div className="step-heading-bar" style={{ marginTop: 28 }}>
                   <span className="step-heading-title">
-                    <span>👥</span> Step 3 · Team Members Accreditation (Max 5 Members)
+                    Step 3 · Team Members Accreditation (Max 5 Members)
                   </span>
                   <span className="step-tag-pill">{members.length} / 5 Added · Mandatory *</span>
                 </div>
@@ -2393,7 +2157,11 @@ export default function RegisterPage() {
                             className="btn-delete-member"
                             onClick={() => handleRemoveMember(member.id)}
                           >
-                            ✕ Remove
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "-1px" }}>
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                            Remove
                           </button>
                         )}
                       </div>
@@ -2413,7 +2181,10 @@ export default function RegisterPage() {
                                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
                               />
                             ) : (
-                              <span style={{ fontSize: 22, color: "#a8a29e" }}>📷</span>
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                <circle cx="12" cy="13" r="4" />
+                              </svg>
                             )}
                           </label>
                           <input
@@ -2427,7 +2198,7 @@ export default function RegisterPage() {
                             }}
                           />
                           <span style={{ fontSize: 10.5, color: member.photoUrl ? "#143e30" : "#78716c", fontWeight: 700 }}>
-                            {member.photoUrl ? "Photo ✓" : "Upload *"}
+                            {member.photoUrl ? "Uploaded" : "Upload *"}
                           </span>
                         </div>
 
@@ -2441,7 +2212,6 @@ export default function RegisterPage() {
                               type="text"
                               required
                               className="input-text-ctrl"
-                              style={{ paddingLeft: 12 }}
                               placeholder="e.g. Priya Sharma"
                               value={member.name}
                               onChange={(e) => handleMemberFieldChange(member.id, "name", e.target.value)}
@@ -2456,7 +2226,6 @@ export default function RegisterPage() {
                               type="tel"
                               required
                               className="input-text-ctrl"
-                              style={{ paddingLeft: 12 }}
                               placeholder="+91 98765 00000"
                               value={member.phone}
                               onChange={(e) => handleMemberFieldChange(member.id, "phone", e.target.value)}
@@ -2477,7 +2246,6 @@ export default function RegisterPage() {
                               type="email"
                               required
                               className="input-text-ctrl"
-                              style={{ paddingLeft: 12 }}
                               placeholder="priya@company.com"
                               value={member.email}
                               onChange={(e) => handleMemberFieldChange(member.id, "email", e.target.value)}
@@ -2504,7 +2272,9 @@ export default function RegisterPage() {
 
             {/* Trust & Security Guarantee */}
             <div className="trust-seal-box">
-              <span className="trust-seal-icon">🛡️</span>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#103327" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
               <div>
                 <p className="trust-seal-head">Official Summit Accreditation Guarantee</p>
                 <p className="trust-seal-text">
@@ -2515,7 +2285,11 @@ export default function RegisterPage() {
 
             {error && (
               <div className="error-alert-box" role="alert" style={{ marginBottom: "16px" }}>
-                <span style={{ fontSize: 20 }}>⚠️</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c25022" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
                 <span>{error}</span>
               </div>
             )}

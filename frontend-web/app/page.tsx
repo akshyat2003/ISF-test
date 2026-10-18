@@ -30,9 +30,9 @@ export default async function Home() {
       <h1>ISF · Startup Jathara</h1>
 
       <div className="pills-row">
-        <span className="pill-item">📅 {eventDates} (Pre-event 17 Dec)</span>
-        <span className="pill-item">📍 GIET University, Gunupur</span>
-        <span className="pill-item">🤝 ISF & Incubatex Innovation</span>
+        <span className="pill-item">{eventDates} (Pre-event 17 Dec)</span>
+        <span className="pill-item">GIET University, Gunupur</span>
+        <span className="pill-item">ISF & Incubatex Innovation</span>
       </div>
 
       <p className="lede">
@@ -51,9 +51,9 @@ export default async function Home() {
       <div className="tracks-ribbon">
         <p className="tracks-ribbon-title">Open Registration Tracks</p>
         <div className="tracks-badges">
-          <span className="track-chip">🚀 Startup Leaders</span>
-          <span className="track-chip">💡 Student Innovators</span>
-          <span className="track-chip">🤝 Volunteers</span>
+          <span className="track-chip">Startup Leaders</span>
+          <span className="track-chip">Student Innovators</span>
+          <span className="track-chip">Summit Volunteers</span>
         </div>
       </div>
     </section>
