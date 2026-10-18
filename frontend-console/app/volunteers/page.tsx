@@ -101,6 +101,38 @@ function compressImageFile(file: File): Promise<string> {
   });
 }
 
+function getAuthToken(): string {
+  if (typeof window === "undefined") return "";
+  function getCookie(name: string): string | null {
+    const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+    return match ? decodeURIComponent(match[1]!) : null;
+  }
+  return (
+    sessionStorage.getItem("sj.console.session") ||
+    sessionStorage.getItem("sj_token") ||
+    localStorage.getItem("sj.console.session") ||
+    localStorage.getItem("sj_token") ||
+    getCookie("sj.console.session") ||
+    getCookie("sj_token") ||
+    ""
+  );
+}
+
+async function authFetch(path: string, init?: RequestInit) {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    ...((init?.headers as Record<string, string>) || {}),
+  };
+  if (token && !headers["authorization"]) {
+    headers["authorization"] = `Bearer ${token}`;
+  }
+  return fetch(path, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
+}
+
 function VolunteersContent() {
   const email = useSessionEmail();
   const { me } = useMe();
@@ -169,7 +201,7 @@ function VolunteersContent() {
       if (collegeFilter !== "all") qParams.set("organisation", collegeFilter);
       if (assignmentFilter !== "all") qParams.set("assignment", assignmentFilter);
 
-      const res = await fetch(`/v1/manage/volunteers?${qParams.toString()}`);
+      const res = await authFetch(`/v1/manage/volunteers?${qParams.toString()}`);
       if (!res.ok) {
         throw new Error(`Failed to fetch volunteers: ${res.statusText}`);
       }
@@ -194,6 +226,15 @@ function VolunteersContent() {
       setO(await api.manage.volunteers(year));
       setError(null);
     } catch (e) {
+      try {
+        const fallbackRes = await authFetch(`/v1/manage/editions/${year}/volunteers`);
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          setO(fallbackData);
+          setError(null);
+          return;
+        }
+      } catch {}
       setError(
         e instanceof ApiError && e.code === "mfa_required"
           ? "mfa_required"
@@ -223,7 +264,7 @@ function VolunteersContent() {
     try {
       await fn();
       if (ok) setMessage(ok);
-      await Promise.all([loadAssignments(), loadDesk()]);
+      await Promise.allSettled([loadAssignments(), loadDesk()]);
     } catch (e) {
       setError(
         e instanceof ApiError && e.problem.errors?.length
@@ -316,7 +357,7 @@ function VolunteersContent() {
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch("/v1/manage/volunteers", {
+      const res = await authFetch("/v1/manage/volunteers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -342,7 +383,7 @@ function VolunteersContent() {
       }
       setMessage(`Volunteer ${formFullName} registered and accredited successfully!`);
       setModalMode(null);
-      await Promise.all([loadDesk(), loadAssignments()]);
+      await Promise.allSettled([loadDesk(), loadAssignments()]);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.");
     } finally {
@@ -357,7 +398,7 @@ function VolunteersContent() {
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`/v1/manage/volunteers/${selectedVolunteer.id}`, {
+      const res = await authFetch(`/v1/manage/volunteers/${selectedVolunteer.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -382,7 +423,7 @@ function VolunteersContent() {
       }
       setMessage(`Volunteer details for ${formFullName} updated successfully!`);
       setModalMode(null);
-      await Promise.all([loadDesk(), loadAssignments()]);
+      await Promise.allSettled([loadDesk(), loadAssignments()]);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.");
     } finally {
@@ -396,7 +437,7 @@ function VolunteersContent() {
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`/v1/manage/volunteers/${selectedVolunteer.id}`, {
+      const res = await authFetch(`/v1/manage/volunteers/${selectedVolunteer.id}`, {
         method: "DELETE",
       });
       const data = await res.json();
@@ -405,7 +446,7 @@ function VolunteersContent() {
       }
       setMessage(`Volunteer ${selectedVolunteer.fullName} was removed from database.`);
       setModalMode(null);
-      await Promise.all([loadDesk(), loadAssignments()]);
+      await Promise.allSettled([loadDesk(), loadAssignments()]);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.");
     } finally {
@@ -420,10 +461,26 @@ function VolunteersContent() {
     setMessage(null);
     try {
       const parsed = parseTarget(quickTarget);
-      await api.manage.assignVolunteer(year, selectedVolunteer.userId, parsed, quickReason.trim());
+      try {
+        await api.manage.assignVolunteer(year, selectedVolunteer.userId, parsed, quickReason.trim());
+      } catch {
+        const res = await authFetch(`/v1/manage/editions/${year}/volunteer-assignments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            volunteerUserId: selectedVolunteer.userId,
+            target: parsed,
+            reason: quickReason.trim(),
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.message || "Failed to assign volunteer.");
+        }
+      }
       setMessage(`Volunteer ${selectedVolunteer.fullName} assigned successfully!`);
       setModalMode(null);
-      await Promise.all([loadDesk(), loadAssignments()]);
+      await Promise.allSettled([loadDesk(), loadAssignments()]);
     } catch (err: any) {
       setError(err.message || "Failed to assign volunteer.");
     } finally {
@@ -497,11 +554,20 @@ function VolunteersContent() {
           </p>
         </div>
         <div className="desk-quick-actions">
-          <button className="btn btn-primary" onClick={openAddModal}>
-            <span>➕</span> Add Volunteer
+          <button type="button" className="btn btn-primary" onClick={openAddModal}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: "-2px" }}>
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add Volunteer
           </button>
-          <button className="btn" onClick={handleExportCsv} disabled={volunteers.length === 0}>
-            <span>📥</span> Export CSV Roster
+          <button type="button" className="btn" onClick={handleExportCsv} disabled={volunteers.length === 0}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: "-2px" }}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Export CSV Roster
           </button>
         </div>
       </div>
@@ -516,18 +582,20 @@ function VolunteersContent() {
       {/* Main Mode Tabs */}
       <div className="tabs" style={{ marginTop: 16 }}>
         <button
+          type="button"
           className="tab"
           aria-current={currentTab === "desk" ? "true" : undefined}
           onClick={() => router.replace(`/volunteers?tab=desk&edition=${year}`)}
         >
-          📋 Volunteer Directory & Desk ({deskSummary.totalVolunteers || volunteers.length})
+          Volunteer Directory & Desk ({deskSummary.totalVolunteers || volunteers.length})
         </button>
         <button
+          type="button"
           className="tab"
           aria-current={currentTab === "assignments" ? "true" : undefined}
           onClick={() => router.replace(`/volunteers?tab=assignments&edition=${year}`)}
         >
-          🎯 Duty & Assignment Engine ({deskSummary.assignedCount} active)
+          Duty & Assignment Engine ({deskSummary.assignedCount} active)
         </button>
       </div>
 
@@ -537,28 +605,56 @@ function VolunteersContent() {
           {/* Summary KPI Ribbon */}
           <div className="kpi-ribbon">
             <div className="kpi-card">
-              <span className="kpi-icon">👥</span>
+              <span className="kpi-icon" style={{ background: "#edf2f7", color: "#2d3748" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </span>
               <div>
                 <div className="kpi-val">{deskSummary.totalVolunteers}</div>
                 <div className="kpi-lbl">Total Registered Volunteers</div>
               </div>
             </div>
             <div className="kpi-card">
-              <span className="kpi-icon" style={{ background: "#e6efeb", color: "#1d5a47" }}>🎯</span>
+              <span className="kpi-icon" style={{ background: "#e6efeb", color: "#1d5a47" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="6" />
+                  <circle cx="12" cy="12" r="2" />
+                </svg>
+              </span>
               <div>
                 <div className="kpi-val" style={{ color: "#1d5a47" }}>{deskSummary.assignedCount}</div>
                 <div className="kpi-lbl">Assigned to Duty</div>
               </div>
             </div>
             <div className="kpi-card">
-              <span className="kpi-icon" style={{ background: "#fbf3e2", color: "#8a5a00" }}>⏱️</span>
+              <span className="kpi-icon" style={{ background: "#fbf3e2", color: "#8a5a00" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </span>
               <div>
                 <div className="kpi-val" style={{ color: "#8a5a00" }}>{deskSummary.unassignedCount}</div>
                 <div className="kpi-lbl">Available on Deck</div>
               </div>
             </div>
             <div className="kpi-card">
-              <span className="kpi-icon" style={{ background: "#f3f4f6", color: "#374151" }}>🏛️</span>
+              <span className="kpi-icon" style={{ background: "#f3f4f6", color: "#374151" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 21h18" />
+                  <path d="M5 21V7l8-4v18" />
+                  <path d="M19 21V11l-6-3" />
+                  <path d="M9 9v.01" />
+                  <path d="M9 12v.01" />
+                  <path d="M9 15v.01" />
+                  <path d="M9 18v.01" />
+                </svg>
+              </span>
               <div>
                 <div className="kpi-val">{deskSummary.organisationsCount || 1}</div>
                 <div className="kpi-lbl">Institutions Represented</div>
@@ -569,7 +665,12 @@ function VolunteersContent() {
           {/* Search & Filter Toolbar */}
           <div className="desk-toolbar">
             <div className="search-field-box">
-              <span className="search-icon">🔍</span>
+              <span className="search-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </span>
               <input
                 type="text"
                 placeholder="Search by name, Redg No, Roll No, college, mobile, city…"
@@ -578,7 +679,7 @@ function VolunteersContent() {
                 className="search-input"
               />
               {searchQuery && (
-                <button className="clear-btn" onClick={() => setSearchQuery("")}>✕</button>
+                <button type="button" className="clear-btn" onClick={() => setSearchQuery("")}>✕</button>
               )}
             </div>
 
@@ -605,8 +706,13 @@ function VolunteersContent() {
                 </select>
               </label>
 
-              <button className="btn btn-sm" onClick={() => void loadDesk()} disabled={loadingDesk}>
-                {loadingDesk ? "Refreshing…" : "🔄 Refresh"}
+              <button type="button" className="btn btn-sm" onClick={() => void loadDesk()} disabled={loadingDesk}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 5, verticalAlign: "-1px" }}>
+                  <path d="M23 4v6h-6" />
+                  <path d="M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                {loadingDesk ? "Refreshing…" : "Refresh"}
               </button>
             </div>
           </div>
@@ -619,13 +725,23 @@ function VolunteersContent() {
             </div>
           ) : volunteers.length === 0 ? (
             <div className="empty-state card">
-              <span style={{ fontSize: 36, display: "block", marginBottom: 8 }}>📋</span>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 8px", display: "block" }}>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
               <h3>No volunteers match your criteria</h3>
               <p className="muted">
                 Try clearing your search query or college filter, or register a new volunteer using the button below.
               </p>
-              <button className="btn btn-primary" onClick={openAddModal}>
-                ➕ Register First Volunteer
+              <button type="button" className="btn btn-primary" onClick={openAddModal}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: "-2px" }}>
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Register First Volunteer
               </button>
             </div>
           ) : (
@@ -663,7 +779,7 @@ function VolunteersContent() {
                           <div className="vol-email">{v.email}</div>
                           <div className="vol-phones">
                             <a href={`tel:${v.mobile}`} className="phone-link">
-                              📞 {v.mobile}
+                              {v.mobile}
                             </a>
                             {v.mobile && (
                               <a
@@ -673,7 +789,7 @@ function VolunteersContent() {
                                 className="whatsapp-link"
                                 title="Chat on WhatsApp"
                               >
-                                💬 WA
+                                WhatsApp
                               </a>
                             )}
                             {v.altMobile && <span className="alt-phone">Alt: {v.altMobile}</span>}
@@ -708,7 +824,7 @@ function VolunteersContent() {
                           {isAssigned ? (
                             <div className="duty-box duty-assigned">
                               <span className="duty-status-badge assigned">
-                                {v.targetType === "startup" ? "🚀 Startup Assigned" : "⚖️ Jury Assigned"}
+                                {v.targetType === "startup" ? "Startup Assigned" : "Jury Assigned"}
                               </span>
                               <div className="duty-target-name">{v.targetName}</div>
                               {v.assignedSince && (
@@ -718,10 +834,11 @@ function VolunteersContent() {
                           ) : (
                             <div className="duty-box duty-unassigned">
                               <span className="duty-status-badge available">
-                                ⏱️ Available on Deck
+                                Available on Deck
                               </span>
                               {o && o.unassignedTargets.length > 0 && (
                                 <button
+                                  type="button"
                                   className="btn-link-action"
                                   onClick={() => openAssignModal(v)}
                                 >
@@ -743,25 +860,41 @@ function VolunteersContent() {
                         <td>
                           <div className="table-actions-cell">
                             <button
+                              type="button"
                               className="btn btn-sm btn-badge-preview"
                               onClick={() => openBadgeModal(v)}
                               title="Preview Official Accreditation Badge"
                             >
-                              🎫 Badge
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "-1px" }}>
+                                <rect x="3" y="4" width="18" height="16" rx="2" />
+                                <line x1="7" y1="8" x2="17" y2="8" />
+                                <line x1="7" y1="12" x2="13" y2="12" />
+                              </svg>
+                              Badge
                             </button>
                             <button
-                              className="btn btn-sm"
+                              type="button"
+                              className="btn btn-sm btn-edit-row"
                               onClick={() => openEditModal(v)}
                               title="Edit Volunteer Details"
                             >
-                              ✏️ Edit
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "-1px" }}>
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                              </svg>
+                              Edit
                             </button>
                             <button
+                              type="button"
                               className="btn btn-sm btn-delete-row"
                               onClick={() => openDeleteModal(v)}
                               title="Revoke / Delete Volunteer"
                             >
-                              🗑️
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "-1px" }}>
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                              Delete
                             </button>
                           </div>
                         </td>
@@ -1130,7 +1263,22 @@ function VolunteersContent() {
         <div className="modal-overlay" onClick={() => setModalMode(null)}>
           <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{modalMode === "add" ? "➕ Register New Volunteer" : `✏️ Edit Volunteer: ${formFullName}`}</h3>
+              <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  {modalMode === "add" ? (
+                    <>
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </>
+                  ) : (
+                    <>
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </>
+                  )}
+                </svg>
+                {modalMode === "add" ? "Register New Volunteer" : `Edit Volunteer: ${formFullName}`}
+              </h3>
               <button className="close-btn" onClick={() => setModalMode(null)}>✕</button>
             </div>
 
@@ -1282,7 +1430,10 @@ function VolunteersContent() {
                         {formPhotoUrl ? (
                           <img src={formPhotoUrl} alt="Preview" />
                         ) : (
-                          <span style={{ fontSize: 24, color: "#9ca3af" }}>👤</span>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
                         )}
                       </div>
                       <div style={{ flex: 1 }}>
@@ -1298,7 +1449,11 @@ function VolunteersContent() {
                           className="btn btn-sm"
                           onClick={() => photoInputRef.current?.click()}
                         >
-                          📷 {formPhotoUrl ? "Change Photo" : "Upload Photo"}
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: "-1px" }}>
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                            <circle cx="12" cy="13" r="4" />
+                          </svg>
+                          {formPhotoUrl ? "Change Photo" : "Upload Photo"}
                         </button>
                         {formPhotoUrl && (
                           <button
@@ -1324,7 +1479,7 @@ function VolunteersContent() {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? "Saving to Database…" : modalMode === "add" ? "Create Volunteer Record →" : "Save Changes"}
+                  {busy ? "Saving to Database…" : modalMode === "add" ? "Create Volunteer Record" : "Save Changes"}
                 </button>
               </div>
             </form>
@@ -1337,7 +1492,14 @@ function VolunteersContent() {
         <div className="modal-overlay" onClick={() => setModalMode(null)}>
           <div className="modal-dialog modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ color: "#a1271b" }}>⚠️ Revoke Volunteer Accreditation</h3>
+              <h3 style={{ color: "#a1271b", display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a1271b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                Revoke Volunteer Accreditation
+              </h3>
               <button className="close-btn" onClick={() => setModalMode(null)}>✕</button>
             </div>
             <div style={{ padding: "16px 20px" }}>
@@ -1379,7 +1541,14 @@ function VolunteersContent() {
         <div className="modal-overlay" onClick={() => setModalMode(null)}>
           <div className="modal-dialog modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>🎯 Assign Duty to {selectedVolunteer.fullName}</h3>
+              <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="6" />
+                  <circle cx="12" cy="12" r="2" />
+                </svg>
+                Assign Duty: {selectedVolunteer.fullName}
+              </h3>
               <button className="close-btn" onClick={() => setModalMode(null)}>✕</button>
             </div>
             <div style={{ padding: "16px 20px", display: "grid", gap: 14 }}>
@@ -1430,13 +1599,25 @@ function VolunteersContent() {
         <div className="modal-overlay" onClick={() => setModalMode(null)}>
           <div className="modal-dialog modal-badge-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header no-print">
-              <h3>🎫 Summit Accreditation Pass</h3>
+              <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <line x1="7" y1="8" x2="17" y2="8" />
+                  <line x1="7" y1="12" x2="13" y2="12" />
+                </svg>
+                Summit Accreditation Pass
+              </h3>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <button
                   className="btn btn-sm btn-primary"
                   onClick={() => window.print()}
                 >
-                  🖨️ Print Badge Card
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: "-1px" }}>
+                    <polyline points="6 9 6 2 18 2 18 9" />
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <rect x="6" y="14" width="12" height="8" />
+                  </svg>
+                  Print Badge Card
                 </button>
                 <button className="close-btn" onClick={() => setModalMode(null)}>✕</button>
               </div>
@@ -1451,7 +1632,6 @@ function VolunteersContent() {
                 {/* Badge Top Header */}
                 <div className="badge-top-banner">
                   <div className="badge-logo-row">
-                    <span className="badge-flag-ico">🇮🇳</span>
                     <span className="badge-summit-name">STARTUP JATHARA 2026</span>
                   </div>
                   <div className="badge-sub-banner">
@@ -1496,7 +1676,11 @@ function VolunteersContent() {
 
                   {/* Location & Duty Info */}
                   <div className="badge-location-text">
-                    📍 {selectedVolunteer.city}, {selectedVolunteer.state}
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "-1px" }}>
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    {selectedVolunteer.city}, {selectedVolunteer.state}
                   </div>
 
                   {selectedVolunteer.targetName && (
@@ -1522,7 +1706,7 @@ function VolunteersContent() {
             </div>
 
             <div className="badge-modal-tip no-print">
-              💡 Tip: Click <strong>Print Badge Card</strong> to output on high-resolution cardstock or PVC badge printer.
+              Tip: Click <strong>Print Badge Card</strong> to output on high-resolution cardstock or PVC badge printer.
             </div>
           </div>
         </div>
@@ -1814,6 +1998,27 @@ function VolunteersContent() {
           background: #1d5a47 !important;
           color: #ffffff !important;
           border-color: #1d5a47 !important;
+          font-weight: 600;
+        }
+        .btn-badge-preview:hover {
+          background: #154536 !important;
+        }
+        .btn-edit-row {
+          background: #f8fafc;
+          color: #1e293b;
+          border: 1px solid #cbd5e1;
+          font-weight: 600;
+        }
+        .btn-edit-row:hover {
+          background: #e2e8f0;
+          color: #0f172a;
+          border-color: #94a3b8;
+        }
+        .btn-delete-row {
+          background: #fff;
+          color: #b91c1c;
+          border: 1px solid #fecaca;
+          font-weight: 600;
         }
         .btn-delete-row:hover {
           background: #fee2e2;

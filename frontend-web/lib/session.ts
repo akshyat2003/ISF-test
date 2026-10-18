@@ -4,15 +4,13 @@ import { createSession } from "@sj/web-session";
 
 const resolveApiUrl = () => {
   if (typeof window !== "undefined") {
-    // In production / on Vercel, always use same-origin relative URL so cookies are sent & hits live DB
-    if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-      return "";
-    }
     const envUrl = process.env.NEXT_PUBLIC_API_URL;
     if (envUrl && envUrl.startsWith("http")) {
       return envUrl;
     }
-    return "http://localhost:4000";
+    // Always use same-origin relative URL so requests hit the Next.js /v1 route
+    // (or its API_PROXY_TARGET if configured) and credentials stay aligned.
+    return "";
   }
   return "";
 };

@@ -767,6 +767,389 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.post("/v1/manage/volunteer-assignments/:id/close", vChange, async (req) =>
     closeAssignment(sql, principalOf(req), parse(Id, req.params).id, parse(CloseAssignmentRequest, req.body).reason, delivery()));
 
+  // ---------------------------------------------------------------- volunteer desk & directory CRUD
+  app.get("/v1/manage/volunteers", vRead, async (req) => {
+    const query = req.query as Record<string, string | undefined>;
+    const q = (query.q || "").toLowerCase().trim();
+    const orgFilter = (query.organisation || "").trim();
+    const assignmentFilter = query.assignment || "all";
+    const edition = Number(query.edition) || 2026;
+
+    // Auto-sync volunteers table with user_accounts marked as volunteer
+    try {
+      await sql`
+        insert into volunteers (
+          user_id, full_name, email, mobile, alt_mobile, organisation_name,
+          redg_no, roll_no, city, state, country, linkedin_url, photo_url, edition_id
+        )
+        select
+          u.id as user_id,
+          u.full_name,
+          coalesce(u.email, 'volunteer@startupjathara.com') as email,
+          coalesce(u.mobile_e164, '+910000000000') as mobile,
+          coalesce(u.alt_mobile, u.mobile_e164, '+910000000000') as alt_mobile,
+          coalesce(u.organisation_name, 'GIET University') as organisation_name,
+          coalesce(u.redg_no, '24UG0000') as redg_no,
+          coalesce(u.roll_no, '24VOL000') as roll_no,
+          coalesce(u.city, 'Gunupur') as city,
+          coalesce(u.state, 'Odisha') as state,
+          coalesce(u.country, 'India') as country,
+          u.linkedin_url,
+          u.photo_url,
+          ${edition} as edition_id
+        from user_accounts u
+        join role_grants rg on rg.user_id = u.id and rg.role = 'volunteer' and rg.revoked_at is null
+        where not exists (
+          select 1 from volunteers v where v.user_id = u.id or (u.email is not null and lower(v.email) = lower(u.email))
+        )
+        on conflict (user_id) do nothing
+      `;
+    } catch {}
+
+    const searchPattern = q ? `%${q}%` : null;
+    const orgPattern = orgFilter && orgFilter !== "all" ? `%${orgFilter}%` : null;
+
+    const rows = await sql`
+      select
+        v.id,
+        v.user_id as "userId",
+        v.full_name as "fullName",
+        v.email,
+        v.mobile,
+        v.alt_mobile as "altMobile",
+        v.organisation_name as "organisationName",
+        v.redg_no as "redgNo",
+        v.roll_no as "rollNo",
+        v.city,
+        v.state,
+        v.country,
+        v.linkedin_url as "linkedinUrl",
+        v.photo_url as "photoUrl",
+        v.edition_id as "editionId",
+        v.created_at as "createdAt",
+        v.updated_at as "updatedAt",
+        coalesce(u.status, 'active') as "accountStatus",
+        u.activated_at as "activatedAt",
+        va.id as "assignmentId",
+        va.state as "assignmentState",
+        va.activated_at as "assignedSince",
+        va.reason as "assignmentReason",
+        case
+          when va.target_startup_id is not null then 'startup'
+          when va.target_jury_user_id is not null then 'jury'
+          else null
+        end as "targetType",
+        case
+          when va.target_startup_id is not null then va.target_startup_id
+          when va.target_jury_user_id is not null then va.target_jury_user_id
+          else null
+        end as "targetId",
+        case
+          when va.target_startup_id is not null then s.name
+          when va.target_jury_user_id is not null then ju.full_name
+          else null
+        end as "targetName"
+      from volunteers v
+      left join user_accounts u on u.id = v.user_id
+      left join volunteer_assignments va on va.volunteer_user_id = v.user_id and va.state <> 'closed'
+      left join startups s on s.id = va.target_startup_id
+      left join user_accounts ju on ju.id = va.target_jury_user_id
+      where (${searchPattern}::text is null or (
+        lower(v.full_name) like ${searchPattern} or
+        lower(v.email) like ${searchPattern} or
+        lower(v.mobile) like ${searchPattern} or
+        lower(v.redg_no) like ${searchPattern} or
+        lower(v.roll_no) like ${searchPattern} or
+        lower(v.organisation_name) like ${searchPattern} or
+        lower(v.city) like ${searchPattern}
+      ))
+      and (${orgPattern}::text is null or lower(v.organisation_name) like lower(${orgPattern}))
+      and (
+        ${assignmentFilter} = 'all' or
+        (${assignmentFilter} = 'assigned' and va.id is not null) or
+        (${assignmentFilter} = 'unassigned' and va.id is null)
+      )
+      order by v.created_at desc
+    `;
+
+    const allVolunteers = await sql`
+      select
+        count(*)::int as total,
+        count(distinct va.id)::int as assigned,
+        count(distinct v.organisation_name)::int as organisations
+      from volunteers v
+      left join volunteer_assignments va on va.volunteer_user_id = v.user_id and va.state <> 'closed'
+    `;
+
+    const colleges = await sql`
+      select distinct organisation_name as name
+      from volunteers
+      where organisation_name is not null and trim(organisation_name) <> ''
+      order by organisation_name asc
+    `;
+
+    const totalVolunteers = allVolunteers[0]?.total || rows.length;
+    const assignedCount = allVolunteers[0]?.assigned || 0;
+    const unassignedCount = Math.max(0, totalVolunteers - assignedCount);
+
+    return {
+      ok: true,
+      items: rows,
+      summary: {
+        totalVolunteers,
+        assignedCount,
+        unassignedCount,
+        organisationsCount: allVolunteers[0]?.organisations || colleges.length,
+        availableColleges: colleges.map((c: any) => c.name),
+      },
+    };
+  });
+
+  app.post("/v1/manage/volunteers", vChange, async (req, reply) => {
+    const body = req.body as any;
+    const fullName = String(body.fullName || "").trim();
+    const email = String(body.email || "").toLowerCase().trim();
+    const mobile = String(body.mobile || "").trim();
+    const altMobile = String(body.altMobile || mobile).trim();
+    const organisationName = String(body.organisationName || body.college || "").trim();
+    const redgNo = String(body.redgNo || "").trim();
+    const rollNo = String(body.rollNo || "").trim();
+    const city = String(body.city || "").trim();
+    const state = String(body.state || "").trim();
+    const country = String(body.country || "India").trim();
+    const linkedinUrl = body.linkedinUrl ? String(body.linkedinUrl).trim() : null;
+    const photoUrl = body.photoUrl ? String(body.photoUrl).trim() : null;
+    const password = body.password ? String(body.password).trim() : "Volunteer@2026!";
+    const edition = Number(body.edition) || 2026;
+
+    if (!fullName) return reply.status(400).send({ message: "Full name is required" });
+    if (!email || !email.includes("@")) return reply.status(400).send({ message: "Valid email is required" });
+    if (!mobile) return reply.status(400).send({ message: "Primary mobile is required" });
+    if (!organisationName) return reply.status(400).send({ message: "Organisation / College name is required" });
+    if (!redgNo) return reply.status(400).send({ message: "Registration number is required" });
+    if (!rollNo) return reply.status(400).send({ message: "Roll number is required" });
+
+    const passwordHash = hashPassword(password);
+    const authSub = `dev|${email}`;
+
+    const [user] = await sql`
+      insert into user_accounts (
+        auth_subject, email, full_name, mobile_e164, password_hash,
+        status, category, organisation_name, redg_no, roll_no, photo_url,
+        alt_mobile, city, state, country, linkedin_url
+      )
+      values (
+        ${authSub}, ${email}, ${fullName}, ${mobile}, ${passwordHash},
+        'active', 'volunteer', ${organisationName}, ${redgNo}, ${rollNo}, ${photoUrl || null},
+        ${altMobile || null}, ${city || null}, ${state || null}, ${country || 'India'}, ${linkedinUrl || null}
+      )
+      on conflict (lower(email)) where email is not null do update
+      set auth_subject = ${authSub},
+          full_name = ${fullName},
+          mobile_e164 = ${mobile},
+          password_hash = coalesce(${passwordHash}, user_accounts.password_hash),
+          category = 'volunteer',
+          status = 'active',
+          organisation_name = ${organisationName},
+          redg_no = ${redgNo},
+          roll_no = ${rollNo},
+          photo_url = coalesce(${photoUrl}, user_accounts.photo_url),
+          alt_mobile = coalesce(${altMobile}, user_accounts.alt_mobile),
+          city = coalesce(${city}, user_accounts.city),
+          state = coalesce(${state}, user_accounts.state),
+          country = coalesce(${country}, user_accounts.country),
+          linkedin_url = coalesce(${linkedinUrl}, user_accounts.linkedin_url),
+          updated_at = now()
+      returning id, email, full_name
+    `;
+
+    if (!user) {
+      throw new AppError(500, "user_creation_failed", "Failed to create user account", "Database did not return inserted user record.");
+    }
+
+    await sql`
+      insert into role_grants (user_id, role, edition_id)
+      values (${user.id}, 'volunteer', ${edition})
+      on conflict do nothing
+    `;
+
+    const [volunteer] = await sql`
+      insert into volunteers (
+        user_id, full_name, email, mobile, alt_mobile, organisation_name,
+        redg_no, roll_no, city, state, country, linkedin_url, photo_url, edition_id
+      )
+      values (
+        ${user.id}, ${fullName}, ${email}, ${mobile}, ${altMobile}, ${organisationName},
+        ${redgNo}, ${rollNo}, ${city}, ${state}, ${country}, ${linkedinUrl}, ${photoUrl}, ${edition}
+      )
+      on conflict (user_id) do update set
+        full_name = ${fullName},
+        email = ${email},
+        mobile = ${mobile},
+        alt_mobile = ${altMobile},
+        organisation_name = ${organisationName},
+        redg_no = ${redgNo},
+        roll_no = ${rollNo},
+        city = ${city},
+        state = ${state},
+        country = ${country},
+        linkedin_url = coalesce(${linkedinUrl}, volunteers.linkedin_url),
+        photo_url = coalesce(${photoUrl}, volunteers.photo_url),
+        updated_at = now()
+      returning *
+    `;
+
+    return reply.status(201).send({
+      ok: true,
+      message: `Volunteer ${fullName} accredited successfully.`,
+      volunteer,
+    });
+  });
+
+  app.get("/v1/manage/volunteers/:id", vRead, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const rows = await sql`
+      select
+        v.id,
+        v.user_id as "userId",
+        v.full_name as "fullName",
+        v.email,
+        v.mobile,
+        v.alt_mobile as "altMobile",
+        v.organisation_name as "organisationName",
+        v.redg_no as "redgNo",
+        v.roll_no as "rollNo",
+        v.city,
+        v.state,
+        v.country,
+        v.linkedin_url as "linkedinUrl",
+        v.photo_url as "photoUrl",
+        v.edition_id as "editionId",
+        v.created_at as "createdAt",
+        v.updated_at as "updatedAt",
+        coalesce(u.status, 'active') as "accountStatus",
+        u.activated_at as "activatedAt",
+        va.id as "assignmentId",
+        va.state as "assignmentState",
+        va.activated_at as "assignedSince",
+        va.reason as "assignmentReason"
+      from volunteers v
+      left join user_accounts u on u.id = v.user_id
+      left join volunteer_assignments va on va.volunteer_user_id = v.user_id and va.state <> 'closed'
+      where v.id = ${id} or v.user_id = ${id}
+    `;
+    if (!rows.length) return reply.status(404).send({ message: "Volunteer not found" });
+    return { ok: true, volunteer: rows[0] };
+  });
+
+  app.put("/v1/manage/volunteers/:id", vChange, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = req.body as any;
+
+    const [existing] = await sql`select * from volunteers where id = ${id} or user_id = ${id}`;
+    if (!existing) return reply.status(404).send({ message: "Volunteer not found" });
+
+    const fullName = body.fullName !== undefined ? String(body.fullName).trim() : existing.full_name;
+    const email = body.email !== undefined ? String(body.email).toLowerCase().trim() : existing.email;
+    const mobile = body.mobile !== undefined ? String(body.mobile).trim() : existing.mobile;
+    const altMobile = body.altMobile !== undefined ? String(body.altMobile).trim() : existing.alt_mobile;
+    const organisationName = body.organisationName !== undefined ? String(body.organisationName).trim() : existing.organisation_name;
+    const redgNo = body.redgNo !== undefined ? String(body.redgNo).trim() : existing.redg_no;
+    const rollNo = body.rollNo !== undefined ? String(body.rollNo).trim() : existing.roll_no;
+    const city = body.city !== undefined ? String(body.city).trim() : existing.city;
+    const state = body.state !== undefined ? String(body.state).trim() : existing.state;
+    const country = body.country !== undefined ? String(body.country).trim() : existing.country;
+    const linkedinUrl = body.linkedinUrl !== undefined ? String(body.linkedinUrl).trim() || null : existing.linkedin_url;
+    const photoUrl = body.photoUrl !== undefined ? String(body.photoUrl).trim() || null : existing.photo_url;
+    const accountStatus = body.accountStatus !== undefined ? String(body.accountStatus).trim() : undefined;
+
+    const [updated] = await sql`
+      update volunteers set
+        full_name = ${fullName},
+        email = ${email},
+        mobile = ${mobile},
+        alt_mobile = ${altMobile},
+        organisation_name = ${organisationName},
+        redg_no = ${redgNo},
+        roll_no = ${rollNo},
+        city = ${city},
+        state = ${state},
+        country = ${country},
+        linkedin_url = ${linkedinUrl},
+        photo_url = ${photoUrl},
+        updated_at = now()
+      where id = ${existing.id}
+      returning *
+    `;
+
+    if (existing.user_id) {
+      await sql`
+        update user_accounts set
+          full_name = ${fullName},
+          email = ${email},
+          mobile_e164 = ${mobile},
+          alt_mobile = ${altMobile},
+          organisation_name = ${organisationName},
+          redg_no = ${redgNo},
+          roll_no = ${rollNo},
+          city = ${city},
+          state = ${state},
+          country = ${country},
+          linkedin_url = ${linkedinUrl},
+          photo_url = ${photoUrl},
+          status = coalesce(${accountStatus || null}, status),
+          updated_at = now()
+        where id = ${existing.user_id}
+      `;
+    }
+
+    return {
+      ok: true,
+      message: "Volunteer details updated successfully.",
+      volunteer: updated,
+    };
+  });
+
+  app.patch("/v1/manage/volunteers/:id", vChange, async (req, reply) => {
+    return (app as any).inject({ method: "PUT", url: `/v1/manage/volunteers/${(req.params as any).id}`, payload: req.body, headers: req.headers });
+  });
+
+  app.delete("/v1/manage/volunteers/:id", vChange, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const [existing] = await sql`select * from volunteers where id = ${id} or user_id = ${id}`;
+    if (!existing) return reply.status(404).send({ message: "Volunteer not found" });
+
+    // Close any active assignment
+    await sql`
+      update volunteer_assignments
+      set state = 'closed', closed_at = now(), closed_by = ${existing.user_id}, close_reason = 'Volunteer record deleted by administrator'
+      where volunteer_user_id = ${existing.user_id} and state <> 'closed'
+    `;
+
+    // Revoke volunteer role grant
+    await sql`
+      update role_grants set revoked_at = now()
+      where user_id = ${existing.user_id} and role = 'volunteer'
+    `;
+
+    // Delete volunteer record
+    await sql`delete from volunteers where id = ${existing.id}`;
+
+    // Deactivate user account if no other active roles
+    const otherRoles = await sql`
+      select id from role_grants where user_id = ${existing.user_id} and revoked_at is null
+    `;
+    if (otherRoles.length === 0) {
+      await sql`update user_accounts set status = 'deactivated', updated_at = now() where id = ${existing.user_id}`;
+    }
+
+    return {
+      ok: true,
+      id: existing.id,
+      message: `Volunteer ${existing.full_name} has been removed from summit accreditation.`,
+    };
+  });
+
   // Participants: their own active assignment / volunteer only, for an edition they take part in.
   app.get("/v1/editions/:year/volunteer/assignment", { preHandler: [auth, requireEditionAccess(), requirePermission("volunteer.my_assignment")] },
     async (req) => myAssignment(sql, principalOf(req), parse(Year, req.params).year));
