@@ -11,8 +11,9 @@ function SignInForm() {
   const next = safeReturnPath(searchParams.get("next"), WEB_RETURN_PATHS, "/status");
   const isTimeout = searchParams.get("timeout") === "1";
 
-  const [step, setStep] = useState<"email" | "password" | "otp">("email");
-  const [email, setEmail] = useState("");
+  const emailParam = searchParams.get("email") || "";
+  const [step, setStep] = useState<"email" | "password" | "otp">(emailParam ? "password" : "email");
+  const [email, setEmail] = useState(emailParam);
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);

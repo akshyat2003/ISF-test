@@ -9,8 +9,9 @@ export function AccountLink() {
 
   if (email === undefined) return null;
 
+  if (pathname === "/signin") return null;
+
   if (!email) {
-    if (pathname === "/signin") return null;
     return <Link href="/signin">Sign In</Link>;
   }
 

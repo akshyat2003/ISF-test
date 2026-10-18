@@ -946,41 +946,25 @@ async function handler(request: Request) {
         `;
       }
 
-      // Generate JWT session token
-      const roles = [role];
-
-      const token = await new SignJWT({
-        email,
-        email_verified: true,
-        aal: "aal1",
-        roles,
-      })
-        .setProtectedHeader({ alg: "HS256" })
-        .setSubject(authSub)
-        .setIssuedAt()
-        .setExpirationTime("24h")
-        .sign(JWT_SECRET);
-
       const response = Response.json({
         ok: true,
-        token,
-        roles,
         user: {
           id: userId,
           email,
           fullName,
-          roles,
+          roles: [role],
           category,
           teamName,
-        photoUrl: storedLeaderPhoto,
+          photoUrl: storedLeaderPhoto,
           membersCount: members.length,
         },
-        message: "Registration successful! Your account is active.",
+        message: "Registration successful! Please sign in with your credentials.",
       });
 
+      // Clear any prior session cookie so user must explicitly sign in with credentials
       response.headers.set(
         "Set-Cookie",
-        `sj_token=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax`
+        `sj_token=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
       );
 
       // Dispatch confirmation email to team leader / student innovator / volunteer

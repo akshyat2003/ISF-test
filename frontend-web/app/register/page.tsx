@@ -2,7 +2,7 @@
 import { useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { storeSessionToken } from "@/lib/session";
+import { signOut } from "@/lib/session";
 
 type CategoryId =
   | "startup_founder"
@@ -509,9 +509,8 @@ export default function RegisterPage() {
         return;
       }
 
-      if (data.token) {
-        storeSessionToken(data.token);
-      }
+      // Explicitly sign out so user must log in with their credentials
+      void signOut();
 
       setRegistered({
         email: normEmail,
@@ -789,12 +788,19 @@ export default function RegisterPage() {
             )}
           </div>
 
+          <div style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 14, padding: "16px 20px", marginBottom: 24, textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <span style={{ fontSize: 18 }}>🔐</span>
+              <strong style={{ color: "#0f172a", fontSize: 14.5 }}>Next Step: Sign In Required</strong>
+            </div>
+            <p style={{ margin: 0, fontSize: 13.5, color: "#64748b", lineHeight: 1.5 }}>
+              Your credentials are saved. To access your summit pass and dashboard, please sign in using your registered email (<strong>{registered.email}</strong>) and password.
+            </p>
+          </div>
+
           <div className="actions">
-            <Link href="/status" className="btn-primary">
-              View Application & Summit Dashboard →
-            </Link>
-            <Link href="/signin" className="btn-secondary">
-              Sign In to Your Account
+            <Link href={`/signin?email=${encodeURIComponent(registered.email)}`} className="btn-primary">
+              Proceed to Sign In with Your Credentials →
             </Link>
           </div>
         </div>
